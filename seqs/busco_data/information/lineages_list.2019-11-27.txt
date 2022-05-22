@@ -1,0 +1,9 @@
+
+################################################
+
+Datasets available to be used with BUSCOv4 as of 2019/11/27:
+
+ bacteria_odb10
+     - proteobacteria_odb10
+         - alphaproteobacteria_odb10
+             - rickettsiales_odb10
