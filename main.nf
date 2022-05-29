@@ -397,7 +397,6 @@ process EXTRACTMITOGENOME {
     output:
     // Mitogenome (assembled if necessary), NOVOPlasty results, statistics
     path("mito_candidate_*"), emit: mitogenome_candidates
-    path('stats.txt')
     //path('split_mitogenome.fa') optional true
     //path('NOVOPlasty_out'), type: 'dir' optional true
     //path('NOVOPlasty_out_highest_average'), type: 'dir' optional true
@@ -532,7 +531,6 @@ process EXTRACTMITOGENOME {
         fi
       done
     fi
-    seqkit stats *.fa > stats.txt
     """
 }
 
