@@ -670,7 +670,7 @@ process STRANDCONTROL {
     if [[ \$( head -n 1 blast_strands.txt ) == *'Strand=Plus/Minus'* ]]
     then
       cat single_contig_mitogenome.fa > original_single_contig_mitogenome.fa
-      cat original_single_contig_mitogenome.fa | while read L; do  echo \$L; read L; echo "\$L" | rev | tr "ATGC" "TACG" ; done > single_contig_mitogenome.fa
+      # cat original_single_contig_mitogenome.fa | while read L; do  echo \$L; read L; echo "\$L" | rev | tr "ATGC" "TACG" ; done > single_contig_mitogenome.fa
 
     fi
     """
