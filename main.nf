@@ -388,7 +388,7 @@ process EXTRACTMITOGENOME {
     errorStrategy 'finish'
 
     // Name of read files
-    tag "$params.job_name"
+    //tag "$params.job_name"
 
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
