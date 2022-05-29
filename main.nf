@@ -393,7 +393,6 @@ process EXTRACTMITOGENOME {
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
     path(contigs)
-    tuple val(name), path(rawreads)
 
     output:
     // Mitogenome (assembled if necessary), NOVOPlasty results, statistics
@@ -998,7 +997,7 @@ workflow {
     }
     //HOSTMITOGENOMEFILTERING(DENOVOASSEMBLY.out)
     //HOSTMITOGENOMEQUALITY(HOSTMITOGENOMEFILTERING.out.host_filtered)
-    EXTRACTMITOGENOME(DENOVOASSEMBLY.out, ch_rawReads)
+    EXTRACTMITOGENOME(DENOVOASSEMBLY.out)
     REASSEMBLEMITOGENOME(DENOVOASSEMBLY.out, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
     STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
     ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
