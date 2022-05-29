@@ -871,7 +871,7 @@ process READMAPPINGFORCOVERAGE{
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the files themself
-    tuple(name), path(reads)
+    tuple val(name), path(reads)
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
     path assembled_endosymbiont
 
