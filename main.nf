@@ -242,7 +242,7 @@ process DENOVOASSEMBLY {
 
     output:
     // SPAdes outputs the assembled genome as a .fasta file called "scaffolds.fasta" -> output of the process
-    tuple val("${reads[0].baseName}"), path('scaffolds.fasta')
+    path('scaffolds.fasta')
 
     script:
     // Make list of kmers SPAdes-compatible ([a, b, c] -> "a,b,c")
@@ -388,7 +388,7 @@ process EXTRACTMITOGENOME {
     errorStrategy 'finish'
 
     // Name of read files
-    //tag "$params.job_name"
+    tag "$params.job_name"
 
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
