@@ -54,7 +54,7 @@ def helpMessage() {
 }
 
 def versionNumber() {
-    log.info"symbiontDivider ~ version $workflow.manifest.version"
+    log.info"endoMiner ~ version $workflow.manifest.version"
 }
 
 // Display the version number on request
@@ -77,11 +77,11 @@ if ( params.endosymbiont_reference == null) {
 }
 
 // Creation of read pair channel with file extension filter and check if empty
-rawReads = Channel
+ch_rawReads = Channel
     .fromFilePairs( params.reads, size: 2, type: 'file' )
     .filter { it =~/.*\.fastq\.gz|.*\.fq\.gz|.*\.fastq|.*\.fq/ }
     .ifEmpty { exit 1,
-             "No FASTQ files found with pattern '${params.endosymbiont_reference}'\n" +
+             "No FASTQ files found with pattern '${params.reads}'\n" +
              "Escape dots ('.') with a backslash character ('\\')\n" +
              "Try enclosing the path in single-quotes (')\n" +
              "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
@@ -377,7 +377,7 @@ process HOSTMITOGENOMEFILTERING {
     """
 }
 
-process extract_mitogenome {
+process EXTRACTMITOGENOME {
     // Copies output file in output folder
     publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
 
@@ -393,7 +393,6 @@ process extract_mitogenome {
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
     path(contigs)
-    path(mitogenome)
     tuple val(name), path(rawreads)
 
     output:
@@ -421,7 +420,7 @@ process extract_mitogenome {
       do
         echo "starting iteration with word size \$i"
         cat unique_seqid.txt > prev_seqid.txt
-        blastn -query $mitogenome -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
+        blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
         echo "blastn complete"
         cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
         echo "made seqids unique"
@@ -514,7 +513,7 @@ process extract_mitogenome {
         do
           echo "starting iteration with word size \$i"
           cat unique_seqid.txt > prev_seqid.txt
-          blastn -query $mitogenome -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
+          blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
           echo "blastn complete"
           cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
           echo "made seqids unique"
@@ -538,7 +537,7 @@ process extract_mitogenome {
     """
 }
 
-process reassemble_mitogenome {
+process REASSEMBLEMITOGENOME {
     // Copies output file in output folder
     publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
 
@@ -635,7 +634,7 @@ process reassemble_mitogenome {
       """
 }
 
-process strand_control {
+process STRANDCONTROL {
     // Copies output file in output folder
     publishDir "${params.output}/$params.job_name/strand_control", mode: 'copy'
 
@@ -650,7 +649,6 @@ process strand_control {
 
     input:
     // Fasta file of assembled genome
-    path mitogenome_reference
     path assembled_mitogenome
 
     output:
@@ -669,7 +667,7 @@ process strand_control {
       cat new_single_contig_mitogenome.fa > single_contig_mitogenome.fa
       rm new_single_contig_mitogenome.fa
     fi
-    makeblastdb -in $mitogenome_reference -dbtype nucl -out reference
+    makeblastdb -in ${params.mitogenome_reference} -dbtype nucl -out reference
     blastn -db reference -query $assembled_mitogenome -word_size 15 -out blast_output.txt
     cat blast_output.txt | grep 'Strand' > blast_strands.txt
     if [[ \$( head -n 1 blast_strands.txt ) == *'Strand=Plus/Minus'* ]]
@@ -680,7 +678,7 @@ process strand_control {
     """
 }
 
-process annotate_mitogenome {
+process ANNOTATEMITOGENOME {
     // Copies output file in output folder
     publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
 
@@ -709,7 +707,7 @@ process annotate_mitogenome {
     """
 }
 
-process mitos_formatting {
+process MITOSFORMATTING {
     // Copies output file in output folder
     publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
 
@@ -979,11 +977,11 @@ process CHECKENDOSYMBIONT {
 
 workflow {
 
-    RAWQC(rawReads)
-    TRIMMING(rawReads)
+    RAWQC(ch_rawReads)
+    TRIMMING(ch_rawReads)
     TRIMMEDQC(TRIMMING.out)
     if (params.skip_trimming) {
-        DENOVOASSEMBLY(rawReads, params.kmers) }
+        DENOVOASSEMBLY(ch_rawReads, params.kmers) }
     else {
         DENOVOASSEMBLY(TRIMMING.out, params.kmers) }
     ENDOSYMBIONTCONTIGFILTERING(DENOVOASSEMBLY.out)
@@ -991,8 +989,8 @@ workflow {
     ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
     CHECKENDOSYMBIONT(endosymbiont_genome)
     if (params.skip_trimming) { 
-        READMAPPINGFORCOVERAGE(rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
-        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
+        READMAPPINGFORCOVERAGE(ch_rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
+        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, ch_rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
     }
     else {
         READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
@@ -1000,11 +998,11 @@ workflow {
     }
     //HOSTMITOGENOMEFILTERING(DENOVOASSEMBLY.out)
     //HOSTMITOGENOMEQUALITY(HOSTMITOGENOMEFILTERING.out.host_filtered)
-    extract_mitogenome(ch_contigs, ch_mitogenome, ch_rawReads)
-    reassemble_mitogenome(ch_contigs, extract_mitogenome.out.mitogenome_candidates, ch_rawReads)
-    strand_control(ch_mitogenome, reassemble_mitogenome.out.mitogenome)
-    annotate_mitogenome(strand_control.out.strand_tested_mitogenome)
-    mitos_formatting(annotate_mitogenome.out.mitos_out, ch_rawReads)
+    EXTRACTMITOGENOME(DENOVOASSEMBLY.out, ch_rawReads)
+    REASSEMBLEMITOGENOME(DENOVOASSEMBLY.out, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
+    STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
+    ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
+    MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, ch_rawReads)
 
 
 
