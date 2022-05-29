@@ -275,13 +275,13 @@ process ENDOSYMBIONTCONTIGFILTERING {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
-    tuple val(name), path(contigs)
+    path contigs
     // A fasta file containing the endosymbiont reference genome
     // path endosymbiont_reference
 
     output:
     // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the endosymbiont genome
-    tuple val(name), path('endosymbiont_genome.fa'), emit: endosym_mapped
+    path('endosymbiont_genome.fa'), emit: endosym_mapped
 
     script:
     /*
@@ -319,12 +319,12 @@ process HOSTMITOGENOMEFILTERING {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
-    tuple val(name), path(host_assembled)
+    path host_assembled
 
     output:
     // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the host mitogenome
-    tuple val(name), path('mitogenome.fa'), emit: host_filtered
-    tuple val(name), path('mitogenome_candidates*')
+    path('mitogenome.fa'), emit: host_filtered
+    path('mitogenome_candidates*')
 
     when:
     // This process is only executed if the endosymbont only mode is not selected
@@ -392,7 +392,7 @@ process EXTRACTMITOGENOME {
 
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
-    path(contigs)
+    path contigs
 
     output:
     // Mitogenome (assembled if necessary), NOVOPlasty results, statistics
@@ -551,8 +551,8 @@ process REASSEMBLEMITOGENOME {
 
     input:
     // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
-    path(contigs)
-    path(mitogenomes)
+    path contigs
+    path mitogenomes
     tuple val(name), path(rawreads)
 
     output:
@@ -796,7 +796,7 @@ process ENDOSYMBIONTGENOMEQUALITY {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
-    tuple val(name), path(endosym)
+    path endosym
 
     output:
     // All files created by BUSCO are output
@@ -835,7 +835,7 @@ process HOSTMITOGENOMEQUALITY {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the host mitogenome
-    tuple val(name), path(host)
+    path host
 
     output:
     // All files created by quast are output
@@ -871,9 +871,9 @@ process READMAPPINGFORCOVERAGE{
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the files themself
-    tuple val(name), path(reads)
+    path reads
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
-    tuple val(name), path(assembled_endosymbiont)
+    path assembled_endosymbiont
 
     output:
     // The log file created by bowtie2 is output
@@ -917,9 +917,9 @@ process COVERAGEESTIMATE {
     // log.txt file from previous process
     path stats
     // A tuple containing the name of the raw/trimmed read files and the files themself
-    tuple val(name_dump), path(reads)
+    path reads
     // A .fa file containing the assembled endosymbiont genome
-    tuple val(name), path(assembled_endosymbiont)
+    path assembled_endosymbiont 
 
     output:
     // The process creates a file containign the coverage which is output
@@ -962,7 +962,7 @@ process CHECKENDOSYMBIONT {
 
     input:
     // A .fa file containing the endosymbiont genome
-    tuple val(name), path(endosymbiont_genome)
+    path endosymbiont_genome
 
     output:
     path '*'
