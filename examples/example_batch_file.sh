@@ -14,9 +14,9 @@ module purge
 module load nextflow
 module load singularity
 
-nextflow run '/path/to/symbiontDivider/main.nf'\
-  --reads '/path/to/symbiontDivider/examples/all_R{1,2}\.fastq\.gz'\
-  --endosymbiont_reference '/path/to/symbiontDivider/examples/wNo_example_reference.fa'\
+nextflow run '/path/to/endoMiner/main.nf'\
+  --reads '/path/to/endoMiner/examples/all_R{1,2}\.fastq\.gz'\
+  --endosymbiont_reference '/path/to/endoMiner/examples/wNo_example_reference.fa'\
   -profile gwdg_cluster\
   --memory 1024\
   --threads 32\
