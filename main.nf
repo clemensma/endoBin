@@ -915,7 +915,7 @@ process COVERAGEESTIMATE {
     // log.txt file from previous process
     path stats
     // A tuple containing the name of the raw/trimmed read files and the files themself
-    path reads
+    tuple val(name), path(reads)
     // A .fa file containing the assembled endosymbiont genome
     path assembled_endosymbiont 
 
