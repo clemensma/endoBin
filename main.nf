@@ -753,7 +753,7 @@ process MITOSFORMATTING {
     bfg -v -F nad4l individual_genes_prot/nad4.faa > nad4.faa
     mv nad4.faa individual_genes_prot/nad4.faa
     fi
-    if grep -q '\\-cox1' "mitos_output/result.geneorder"
+    if grep -q '\\-' "mitos_output/result.geneorder"
     then
       cat mitos_output/result.geneorder > mitos_output/original_result.geneorder
       sed -i -e 's/-//g' mitos_output/result.geneorder
