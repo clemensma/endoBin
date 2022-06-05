@@ -86,6 +86,11 @@ ch_rawReads = Channel
              "Try enclosing the path in single-quotes (')\n" +
              "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
 
+if ( params.contigs ) {
+  ch_contigs = Channel
+      .fromPath (params.contigs)
+}
+
 // Setting job name
 extensions = ['_R{1,2}', '{1,2}', '\\.fastq\\.gz', '\\.fq\\.gz', '.fastq.gz', '.fq.gz', '\\.fastq', '\\.fq', '.fq', '.fastq' ]
 String[] extensions = extensions.toArray(new String[extensions.size()])
@@ -983,7 +988,7 @@ workflow {
       contigs = DENOVOASSEMBLY.out
       }
     else {
-      contigs = Channel.fromPath(params.contigs, type = 'file')
+      contigs = ch_contigs
     }
     ENDOSYMBIONTCONTIGFILTERING(contigs)
     endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
