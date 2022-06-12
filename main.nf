@@ -284,7 +284,7 @@ process ENDOSYMBIONTCONTIGFILTERING {
     3. Based on the contig ids, contigs are grepped from the de novo assembled contigs using bfg
     */
     """
-    if [[ "$params.contigs" == 'false' ]]
+    if [[ "$params.contigs" !== 'false' ]]
     then
       cat $contigs > contigs.fa
     else
@@ -324,7 +324,7 @@ process EXTRACTMITOGENOME {
     touch unique_seqid.txt
     touch possible_mitogenomes.fa
 
-    if [[ "$params.contigs" == 'false' ]]
+    if [[ "$params.contigs" !== 'false' ]]
     then
       cat $contigs > cov_50_plus.fa
       cat $contigs > cov_100_plus.fa
