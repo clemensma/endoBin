@@ -127,10 +127,6 @@ process RAWQC {
     // FastQC outputs the results as .html files -> those are output
     path '*.html'
 
-    when:
-    // This process only executes when QC is not skipped
-    ! skip_qc
-
     script:
     // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
     """
@@ -159,10 +155,6 @@ process TRIMMING {
     output:
     // TrimGalore! outputs the trimmed reads in .fg files that are output in a tuple comined with the name of the files
     tuple val("${reads[0].baseName}"), path('*.fq*'), emit: trimmed_reads
-
-    when:
-    // This process is only executed when trimming is not skipped
-    ! params.skip_trimming
 
     script:
     // TrimGalore! command with paired read option (see TrimGalore! documentation for details)
@@ -214,10 +206,6 @@ process TRIMMEDQC {
     output:
     // FastQC outputs the results as .html files -> those are output
     path '*.html'
-
-    when:
-    // This process is only executed if QC and trimming are not skipped
-    ! skip_qc && ! params.skip_trimming
 
     script:
     // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
@@ -747,10 +735,6 @@ process ENDOSYMBIONTGENOMEQUALITY {
     output:
     // All files created by BUSCO are output
     path 'qc/*'
-
-    when:
-    // This process is only executed if the last quality assessment is not skipped
-    ! params.skip_assembly_quality
 
     script:
     // BUSCO command (see BUSCO documentation for details)
