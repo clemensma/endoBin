@@ -985,20 +985,21 @@ workflow {
     else {
       contigs = Channel.fromPath(params.contigs, type = 'file')
     }
+    if (params.mode == "endo" || params.mode == "both" ){
     ENDOSYMBIONTCONTIGFILTERING(contigs)
     endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
     ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
     CHECKENDOSYMBIONT(endosymbiont_genome)
     READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
     COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
+    }
+    if (params.mode == "mito" || params.mode == "both" ){
     EXTRACTMITOGENOME(contigs)
     REASSEMBLEMITOGENOME(contigs, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
     STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
     ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
     MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, TRIMMING.out)
-
-
-
+    }
 }
 
 workflow.onComplete {
