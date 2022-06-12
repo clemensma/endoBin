@@ -284,18 +284,15 @@ process ENDOSYMBIONTCONTIGFILTERING {
     3. Based on the contig ids, contigs are grepped from the de novo assembled contigs using bfg
     */
     """
-    if [[ $params.contigs ]]
+    if $params.contigs
     then
       cat $contigs > contigs.fa
-      makeblastdb -in ${params.endosymbiont_reference} -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
-      blastn -query contigs.fa -db db -outfmt "10 qseqid" > seqid.txt
-      cat contigs.fa | bfg -F -f seqid.txt > endosymbiont_genome.fa
     else
       cat $contigs | bfg "cov_([1-9][3-9][0-9]*|[1-9][0-9][0-9]{1,}|[2-9][0-9])\\.[0-9]+" > contigs.fa
+    fi
       makeblastdb -in ${params.endosymbiont_reference} -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
       blastn -query contigs.fa -db db -outfmt "10 qseqid" > seqid.txt
       cat contigs.fa | bfg -F -f seqid.txt > endosymbiont_genome.fa
-    fi
     """
 }
 
@@ -327,48 +324,32 @@ process EXTRACTMITOGENOME {
     touch unique_seqid.txt
     touch possible_mitogenomes.fa
 
-    if [[ $params.contigs ]]
+    if $params.contigs
     then
       cat $contigs > cov_50_plus.fa
-      makeblastdb -in $contigs -title contig -parse_seqids -dbtype nucl -hash_index -out db
-      echo "blastdb created"
-      for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
-        do
-          echo "starting iteration with word size \$i"
-          cat unique_seqid.txt > prev_seqid.txt
-          blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
-          echo "blastn complete"
-          cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
-          echo "made seqids unique"
-          cat cov_100_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_100_wordsize_\$i.fa"
-          cat cov_50_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_50_wordsize_\$i.fa"        
-          if [[ \$(grep -v '^>' mg_candidate_covcut_100_wordsize_\$i.fa | wc -m) ==  '0' ]] && [[ \$(grep -v '^>' mg_candidate_covcut_50_wordsize_\$i.fa | wc -m) ==  '0' ]]
-          then
-            break
-          fi
-      done
+      cat $contigs > cov_100_plus.fa
     else
       cat $contigs | bfg "cov_[5-9][0-9]{1,}\\.[0-9]+" > cov_50_to_99.fa
       cat $contigs | bfg "cov_[1-9][0-9][0-9]{1,}\\.[0-9]+" > cov_100_plus.fa
       cat cov_50_to_99.fa cov_100_plus.fa > cov_50_plus.fa
-      makeblastdb -in $contigs -title contig -parse_seqids -dbtype nucl -hash_index -out db
-      echo "blastdb created"
-      for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
-        do
-          echo "starting iteration with word size \$i"
-          cat unique_seqid.txt > prev_seqid.txt
-          blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
-          echo "blastn complete"
-          cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
-          echo "made seqids unique"
-          cat cov_100_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_100_wordsize_\$i.fa"
-          cat cov_50_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_50_wordsize_\$i.fa"        
-          if [[ \$(grep -v '^>' mg_candidate_covcut_100_wordsize_\$i.fa | wc -m) ==  '0' ]] && [[ \$(grep -v '^>' mg_candidate_covcut_50_wordsize_\$i.fa | wc -m) ==  '0' ]]
-          then
-            break
-          fi
-      done
     fi
+    makeblastdb -in $contigs -title contig -parse_seqids -dbtype nucl -hash_index -out db
+    echo "blastdb created"
+    for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
+      do
+        echo "starting iteration with word size \$i"
+        cat unique_seqid.txt > prev_seqid.txt
+        blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
+        echo "blastn complete"
+        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
+        echo "made seqids unique"
+        cat cov_100_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_100_wordsize_\$i.fa"
+        cat cov_50_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_50_wordsize_\$i.fa"        
+        if [[ \$(grep -v '^>' mg_candidate_covcut_100_wordsize_\$i.fa | wc -m) ==  '0' ]] && [[ \$(grep -v '^>' mg_candidate_covcut_50_wordsize_\$i.fa | wc -m) ==  '0' ]]
+        then
+          break
+        fi
+    done
 
     for file in mg_candidate*
     do
