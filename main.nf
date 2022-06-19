@@ -10,43 +10,57 @@ project_dir = projectDir
 def helpMessage() {
     log.info"""
     Description:
-        An easy to use pipeline to separate endosymbiont genomes from their host's
+        This pipeline separates endosymbiont prokaryotic genomes from their respective eukaryotic host mitogenome based on raw Illumina reads. It performs raw- and trimmed read quality control, adapter trimming, de-novo assembly, contig sorting and assembly quality assessment on paired short read sequence data.
     Pipeline summary:
-        1. Trimming using TrimGalore!
-        2. Read quality control using FastQC
-        3. De Novo assembly using megahit
-        4. Filtering endosymbiont genome using blastn
-        5. Filtering host mitogenome using blastn
-        6. Read mapping for coverage estimate using bowtie2
-        7. Coverage estimate
-        8. Assembly quality assessment using BUSCO
+         1. Raw reads quality control using FastQC
+         2. Trimming using TrimGalore!
+         3. trimmed read quality control using FastQC
+         4. De Novo assembly using SPAdes
+         5. Contig sorting based on endosymbiont reference genome using blastn and bfg
+         6. Read mapping for coverage estimate using bowtie2
+         7. Endosymbiont genome coverage estimate
+         8. Endosymbiont genome quality assessment using BUSCO and CheckM
+         9. Mitogenome extraction using blastn and bfg
+        10. Mitogenome reassembly by NOVOPlasty
+        11. Mitogenome strand control
+        12. Mitogenome annotation with MITOS
+        13. MITOS output formatting
     Usage:
-        nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
+        nextflow run main.nf -profile local
         
     Mandatory arguments:
         --reads             path to one or more sets of paired-ended reads (valid
                             file types: .fastq.gz', '.fq.gz', '.fastq', or '.fq')
+                            (default: $params.reads)
         --endosymbiont_reference
-                            path to one or more reference genomes for the endosymbiont
-                            assembly (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
+                            path to a reference genome for the endosymbiont
+                            (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
+                            (default: $params.endosymbiont_reference)
+        --mitogenome_reference
     Input/output options:
         --output            path to a directory which the results are written to
                             (default: $params.output)
     Resource allocation:
-        --memory            memory limit for the assembly step in GB (default:
+        --max_memory        memory limit for the pipeline step in GB (default:
                             $params.max_memory)
-        --threads           maximum number of threads to be used by the pipeline
+        --max_cpus          maximum number of threads to be used by the pipeline
                             (default: '$params.max_cpus')
     Flow control:
-        --endosymbiont_only
-                            skip processing of reads not belonging to the endosymbiont (default: $params.endosymbiont_only)
-        --skip_coverage     skip coverage estimate step (default: $params.skip_coverage)
-        --skip_trimming     skip trimming step (default: $params.skip_trimming)
-        --skip_qc           skip reads quality assessment (default: $params.skip_qc)
-        --skip_endosymbiont_assembly
-                            skip endosymbiont assembly step (default: $params.skip_endosymbiont_assembly)
-        --skip_assembly_quality
-                            skip assembly quality assessment (default: $params.skip_assembly_quality)
+        --mode
+        --contigs
+    Process specific arguments:
+        --trim_length
+        --trim_quality
+        --trim_adapter
+        --trim_phred64
+        --trim_clip_R1
+        --trim_three_prime_clip_R1
+        --trim_clip_R2
+        --trim_three_prime_clip_R2
+        --kmers
+        --meta
+        --min_blast_wordsize
+        --max_blast_wordsize
     Miscellaneous:
         --help              display this help message and exit
         --version           display the pipeline's version number and exit
@@ -54,7 +68,7 @@ def helpMessage() {
 }
 
 def versionNumber() {
-    log.info"symbiontDivider ~ version $workflow.manifest.version"
+    log.info"endoMiner ~ version $workflow.manifest.version"
 }
 
 // Display the version number on request
@@ -77,14 +91,19 @@ if ( params.endosymbiont_reference == null) {
 }
 
 // Creation of read pair channel with file extension filter and check if empty
-rawReads = Channel
+ch_rawReads = Channel
     .fromFilePairs( params.reads, size: 2, type: 'file' )
     .filter { it =~/.*\.fastq\.gz|.*\.fq\.gz|.*\.fastq|.*\.fq/ }
     .ifEmpty { exit 1,
-             "No FASTQ files found with pattern '${params.endosymbiont_reference}'\n" +
+             "No FASTQ files found with pattern '${params.reads}'\n" +
              "Escape dots ('.') with a backslash character ('\\')\n" +
              "Try enclosing the path in single-quotes (')\n" +
              "Valid file types: '.fastq.gz', '.fq.gz', '.fastq', or '.fq'" }
+
+if ( params.contigs ) {
+  ch_contigs = Channel
+      .fromPath (params.contigs)
+}
 
 // Setting job name
 extensions = ['_R{1,2}', '{1,2}', '\\.fastq\\.gz', '\\.fq\\.gz', '.fastq.gz', '.fq.gz', '\\.fastq', '\\.fq', '.fq', '.fastq' ]
@@ -122,10 +141,6 @@ process RAWQC {
     // FastQC outputs the results as .html files -> those are output
     path '*.html'
 
-    when:
-    // This process only executes when QC is not skipped
-    ! skip_qc
-
     script:
     // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
     """
@@ -154,10 +169,6 @@ process TRIMMING {
     output:
     // TrimGalore! outputs the trimmed reads in .fg files that are output in a tuple comined with the name of the files
     tuple val("${reads[0].baseName}"), path('*.fq*'), emit: trimmed_reads
-
-    when:
-    // This process is only executed when trimming is not skipped
-    ! params.skip_trimming
 
     script:
     // TrimGalore! command with paired read option (see TrimGalore! documentation for details)
@@ -210,10 +221,6 @@ process TRIMMEDQC {
     // FastQC outputs the results as .html files -> those are output
     path '*.html'
 
-    when:
-    // This process is only executed if QC and trimming are not skipped
-    ! skip_qc && ! params.skip_trimming
-
     script:
     // FastQC command with half of input threads and in quiet mode (see FastQC documentation for details)
     """
@@ -242,7 +249,7 @@ process DENOVOASSEMBLY {
 
     output:
     // SPAdes outputs the assembled genome as a .fasta file called "scaffolds.fasta" -> output of the process
-    tuple val("${reads[0].baseName}"), path('scaffolds.fasta')
+    path('scaffolds.fasta')
 
     script:
     // Make list of kmers SPAdes-compatible ([a, b, c] -> "a,b,c")
@@ -275,13 +282,13 @@ process ENDOSYMBIONTCONTIGFILTERING {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
-    tuple val(name), path(contigs)
+    path contigs
     // A fasta file containing the endosymbiont reference genome
     // path endosymbiont_reference
 
     output:
     // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the endosymbiont genome
-    tuple val(name), path('endosymbiont_genome.fa'), emit: endosym_mapped
+    path('endosymbiont_genome.fa'), emit: endosym_mapped
 
     script:
     /*
@@ -291,23 +298,182 @@ process ENDOSYMBIONTCONTIGFILTERING {
     3. Based on the contig ids, contigs are grepped from the de novo assembled contigs using bfg
     */
     """
-    cat $contigs | bfg "cov_([1-9][3-9][0-9]*|[1-9][0-9][0-9]{1,}|[2-9][0-9])\\.[0-9]+" > contigs.fa
-    makeblastdb -in ${params.endosymbiont_reference} -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
-    blastn -query contigs.fa -db db -outfmt "10 qseqid" > seqid.txt
-    cat contigs.fa | bfg -F -f seqid.txt > endosymbiont_genome.fa
+    if [[ "$params.contigs" != 'false' ]]
+    then
+      cat $contigs > contigs.fa
+    else
+      cat $contigs | bfg "cov_([1-9][3-9][0-9]*|[1-9][0-9][0-9]{1,}|[2-9][0-9])\\.[0-9]+" > contigs.fa
+    fi
+      makeblastdb -in ${params.endosymbiont_reference} -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
+      blastn -query contigs.fa -db db -outfmt "10 qseqid" > seqid.txt
+      cat contigs.fa | bfg -F -f seqid.txt > endosymbiont_genome.fa
     """
 }
 
-process HOSTMITOGENOMEFILTERING {
 
-    /* 
-        Process Description:
-        Extraction of contig/s belonging to the host mitogenome using blastn and grep
-    */
-
+process EXTRACTMITOGENOME {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/host_assembly", mode: 'copy'
-    
+    publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
+
+    // Process label
+    label 'fast'
+
+    // If this process fails, it does not end the whole pipeline
+    errorStrategy 'finish'
+
+    // Name of read files
+    tag "$params.job_name"
+
+    input:
+    // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
+    path contigs
+
+    output:
+    // Mitogenome (assembled if necessary), NOVOPlasty results, statistics
+    path("mito_candidate_*"), emit: mitogenome_candidates
+
+    script:
+    """
+    touch prev_seqid.txt
+    touch unique_seqid.txt
+    touch possible_mitogenomes.fa
+
+    if [[ "$params.contigs" != 'false' ]]
+    then
+      cat $contigs > cov_50_plus.fa
+      cat $contigs > cov_100_plus.fa
+    else
+      cat $contigs | bfg "cov_[5-9][0-9]{1,}\\.[0-9]+" > cov_50_to_99.fa
+      cat $contigs | bfg "cov_[1-9][0-9][0-9]{1,}\\.[0-9]+" > cov_100_plus.fa
+      cat cov_50_to_99.fa cov_100_plus.fa > cov_50_plus.fa
+    fi
+    makeblastdb -in $contigs -title contig -parse_seqids -dbtype nucl -hash_index -out db
+    echo "blastdb created"
+    for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
+      do
+        echo "starting iteration with word size \$i"
+        cat unique_seqid.txt > prev_seqid.txt
+        blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
+        echo "blastn complete"
+        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
+        echo "made seqids unique"
+        cat cov_100_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_100_wordsize_\$i.fa"
+        cat cov_50_plus.fa | bfg -f unique_seqid.txt > "mg_candidate_covcut_50_wordsize_\$i.fa"        
+        if [[ \$(grep -v '^>' mg_candidate_covcut_100_wordsize_\$i.fa | wc -m) ==  '0' ]] && [[ \$(grep -v '^>' mg_candidate_covcut_50_wordsize_\$i.fa | wc -m) ==  '0' ]]
+        then
+          break
+        fi
+    done
+
+    for file in mg_candidate*
+    do
+      if [[ \$(grep -c  '^>' \$file) ==  '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) > '14000' ]]
+      then
+        cat \$file > mito_candidate_mitogenome.fa
+      fi
+    done
+    if [[ ! -f mito_candidate_mitogenome.fa ]]
+    then
+      for file in mg_candidate_covcut_100_*
+      do
+        grep -v  '^>' \$file | wc -m
+      done > nucleotide_count_covcut_100.txt
+      closest_match=\$( awk -v c=1 -v t=$params.nucleotide_size 'NR==1{d=\$c-t;d=d<0?-d:d;v=\$c;next}{m=\$c-t;m=m<0?-m:m}m<d{d=m;v=\$c}END{print v}' nucleotide_count_covcut_100.txt )
+      for blast_result in mg_candidate_covcut_100_*
+      do
+        if [[ \$(grep -v  '^>' \$blast_result | wc -m) = "\$closest_match" ]]
+        then
+          cat \$blast_result > mito_candidate_covcut_100_size_match.fa
+          break
+        fi
+      done
+      for file in mg_candidate_covcut_50_*
+      do
+        grep -v  '^>' \$file | wc -m
+      done > nucleotide_count_covcut_50.txt
+      closest_match=\$( awk -v c=1 -v t=$params.nucleotide_size 'NR==1{d=\$c-t;d=d<0?-d:d;v=\$c;next}{m=\$c-t;m=m<0?-m:m}m<d{d=m;v=\$c}END{print v}' nucleotide_count_covcut_50.txt )
+      for blast_result in mg_candidate_covcut_50_*
+      do
+        if [[ \$(grep -v  '^>' \$blast_result | wc -m) = "\$closest_match" ]]
+        then
+          cat \$blast_result > mito_candidate_covcut_50_size_match.fa
+          break
+        fi
+      done
+    fi
+    if [[ ! -f mito_candidate_mitogenome.fa ]]
+    then
+      for blastn_result in mg_candidate_covcut_100_*
+      do
+              grep '^>' "\$blastn_result" > covcut_100_header_list.txt
+              while read -r header
+                  do
+                  bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
+              done < covcut_100_header_list.txt > "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt"
+              awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt" > "\${blastn_result}_covcut_100_avg_len.txt"
+      done
+      cat *_covcut_100_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_100_highest_avg.txt
+      for avg_len in *_covcut_100_avg_len.txt
+      do
+        if [[ \$(cat "\$avg_len") = \$(cat covcut_100_highest_avg.txt) ]]
+        then
+            novoplasty_seed="\${avg_len%_covcut_100_avg_len.txt}"
+            cat \$novoplasty_seed > mito_candidate_covcut_100_contig_match.fa
+        fi
+      done
+      for blastn_result in mg_candidate_covcut_50_*
+      do
+              grep '^>' "\$blastn_result" > covcut_50_header_list.txt
+              while read -r header
+                  do
+                  bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
+              done < covcut_50_header_list.txt > "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt"
+              awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt" > "\${blastn_result}_covcut_50_avg_len.txt"
+      done
+      cat *_covcut_50_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_50_highest_avg.txt
+      for avg_len in *_covcut_50_avg_len.txt
+      do
+        if [[ \$(cat "\$avg_len") = \$(cat covcut_50_highest_avg.txt) ]]
+        then
+            novoplasty_seed="\${avg_len%_covcut_50_avg_len.txt}"
+            cat \$novoplasty_seed > mito_candidate_covcut_50_contig_match.fa
+        fi
+      done
+    fi
+    if [[ \$(grep -v  '^>' mito_candidate_covcut_50_size_match.fa | wc -m) < '2000' ]] && [[ ! -f mito_candidate_mitogenome.fa ]]
+    then
+        cat $contigs | bfg "cov_[1-9][0-9]{1,}\\.[0-9]+" > cov_10_plus.fa
+      for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
+        do
+          echo "starting iteration with word size \$i"
+          cat unique_seqid.txt > prev_seqid.txt
+          blastn -query ${params.mitogenome_reference} -db db -outfmt "10 sseqid" -word_size \$i -num_threads ${task.cpus} > seqid.txt
+          echo "blastn complete"
+          cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
+          echo "made seqids unique"
+          cat cov_10_plus.fa | bfg -f unique_seqid.txt > "mitogenome_candidates_wordsize_\$i.fa"
+        done
+      for file in *candidate*
+      do
+        grep -v  '^>' \$file | wc -m
+      done > nucleotide_count.txt
+      closest_match=\$( awk -v c=1 -v t=$params.nucleotide_size 'NR==1{d=\$c-t;d=d<0?-d:d;v=\$c;next}{m=\$c-t;m=m<0?-m:m}m<d{d=m;v=\$c}END{print v}' nucleotide_count.txt )
+      for blast_result in *candidate*
+      do
+        if [[ \$(grep -v  '^>' \$blast_result | wc -m) = "\$closest_match" ]]
+        then
+          cat \$blast_result > identified_mitogenome.fa
+          break
+        fi
+      done
+    fi
+    """
+}
+
+process REASSEMBLEMITOGENOME {
+    // Copies output file in output folder
+    publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
+
     // Process label
     label 'normal'
 
@@ -318,62 +484,223 @@ process HOSTMITOGENOMEFILTERING {
     tag "$params.job_name"
 
     input:
-    // A tuple containing the name of the raw/trimmed read files and the contigs assembled before
-    tuple val(name), path(host_assembled)
+    // Assembled contigs fasta file, reference mitogenome, forward and reverse read corresponding to contigs
+    path contigs
+    path mitogenomes
+    tuple val(name), path(rawreads)
 
     output:
-    // The process outputs a tuple with the reads name and a .fa file containing all the contigs belonging to the host mitogenome
-    tuple val(name), path('mitogenome.fa'), emit: host_filtered
-    tuple val(name), path('mitogenome_candidates*')
+    path('single_contig_mitogenome.fa'), emit: mitogenome
+    path("NOVOPlasty_run_*"), type: 'dir' optional true
 
-    when:
-    // This process is only executed if the endosymbont only mode is not selected
-    ! params.endosymbiont_only 
-
-
-    script:
-    /*
-    Script description:
-    1. Create empty files for intermediate storage
-    2. Create a blast database from a sequence for the cox1 gene (mitogenome exclusive gene)
-    3. Iterate from 11 to 25
-        3.1. Concatenate the previous found reads to prev_seqid.txt
-        3.2. Blastn search with word size determined by iteration number, using de novo assembled reads as query
-        3.3. Determined seqids are made unique and cat into unique_seqid.txt
-        3.4. If the unique_seqid.txt is empty -> grep contigs based on previously found seqids by bfg -> break iteration
-        3.5. If the unique_seqid.txt has 1 entry -> grep corrisponding contig by bfg -> break iteration
-    */
     """
-    touch mitogenome.fa
-    touch prev_seqid.txt
-    touch unique_seqid.txt
-    touch possible_mitogenomes.fa
-    cat $host_assembled | bfg "cov_[1-9][0-9][0-9]{1,}\\.[0-9]+" > possible_mitogenomes.fa
-    makeblastdb -in ${params.mitogenome_bait} -title cox1 -parse_seqids -dbtype nucl -hash_index -out db
-    echo "blastdb created"
-    for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
+    if [[ -f mito_candidate_mitogenome.fa ]]
+    then
+      cat mito_candidate_mitogenome.fa > single_contig_mitogenome.fa
+    elif [[ ! -f mito_candidate_mitogenome.fa ]]
+    then
+      echo "Project:
+      -----------------------
+      Project name          = Mitogenome
+      Type                  = mito
+      Genome Range          = $params.min_size-$params.max_size
+      K-mer                 = $params.kmer_size
+      Max memory            = ${task.memory.toGiga()}
+      Extended log          = 0
+      Save assembled reads  = no
+      Seed Input            = split_mitogenome.fa
+      Extend seed directly  = no
+      Reference sequence    =
+      Variance detection    =
+      Dataset 1:
+      -----------------------
+      Read Length           = $params.read_length
+      Insert size           = $params.insert_size
+      Platform              = illumina
+      Single/Paired         = PE
+      Combined reads        =
+      Forward reads         = ${rawreads[0]}
+      Reverse reads         = ${rawreads[1]}
+      Store Hash            =
+      Optional:
+      -----------------------
+      Insert size auto      = yes
+      Use Quality Scores    = no
+      Output path           = " > config.txt
+      candidate_list=($mitogenomes)
+      for i in "\${candidate_list[@]}"
       do
-        echo "starting iteration with word size \$i"
-        cat unique_seqid.txt > prev_seqid.txt
-        blastn -query possible_mitogenomes.fa -db db -outfmt "10 qseqid" -word_size \$i > seqid.txt
-        echo "blastn complete"
-        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt
-        echo "made seqids unique"
-        cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > "mitogenome_candidates_wordsize_\$i.fa"
-        if [[ \$(wc -l unique_seqid.txt) = "0 unique_seqid.txt" ]];
+        cat \$i > split_mitogenome.fa
+        NOVOPlasty.pl -c config.txt
+        mkdir NOVOPlasty_run_\$i
+        mv contigs_tmp_Mitogenome.txt log_Mitogenome.txt NOVOPlasty_run_\$i
+        if [[ -f "Merged_contigs_Mitogenome.txt" ]]
         then
-          cat possible_mitogenomes.fa | bfg -f prev_seqid.txt > mitogenome.fa
-          echo "multiple possible mitogenomes found"
-          break
+          mv Merged_contigs_Mitogenome.txt NOVOPlasty_run_\$i
         fi
-        if [[ \$(wc -l unique_seqid.txt) = "1 unique_seqid.txt" ]];
+        if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
         then
-          cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > mitogenome.fa
-          echo "mitogenome found"
+          cat Circularized_assembly_1_Mitogenome.fasta > single_contig_mitogenome.fa
+          mv Circularized_assembly_1_Mitogenome.fasta NOVOPlasty_run_\$i
+        elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
+        then
+          cat Uncircularized_assemblies_1_Mitogenome.fasta > single_contig_mitogenome.fa
+          mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$i
+        elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
+        then
+          contig=\$( head -n 1 Contigs_1_Mitogenome.fasta )
+          bfg -F \$contig Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
+          mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
+        fi
+        if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) > '14000' ]]
+        then
           break
         fi
       done
-    echo "process successful"
+    fi
+      """
+}
+
+process STRANDCONTROL {
+    // Copies output file in output folder
+    publishDir "${params.output}/$params.job_name/strand_control", mode: 'copy'
+
+    // Process label
+    label 'fast'
+
+    // If this process fails, it does not end the whole pipeline
+    errorStrategy 'finish'
+
+    // Name of read files
+    tag "$params.job_name"
+
+    input:
+    // Fasta file of assembled genome
+    path assembled_mitogenome
+
+    output:
+    // Mitochondrial genome
+    path('single_contig_mitogenome.fa'), emit: strand_tested_mitogenome
+    path('original_single_contig_mitogenome.fa') optional true
+    path('blast_output.txt')
+    path('blast_strands.txt')
+
+    script:
+    """
+    if [[ \$( cat single_contig_mitogenome.fa | grep -v '^>' | grep -c -i -e [*] ) > '0' ]]
+    then
+      
+      tr -d \\* < single_contig_mitogenome.fa > new_single_contig_mitogenome.fa
+      cat new_single_contig_mitogenome.fa > single_contig_mitogenome.fa
+      rm new_single_contig_mitogenome.fa
+    fi
+    makeblastdb -in ${params.mitogenome_reference} -dbtype nucl -out reference
+    blastn -db reference -query $assembled_mitogenome -word_size 15 -out blast_output.txt
+    cat blast_output.txt | grep 'Strand' > blast_strands.txt
+    if [[ \$( head -n 1 blast_strands.txt ) == *'Strand=Plus/Minus'* ]]
+    then
+      cat single_contig_mitogenome.fa > original_single_contig_mitogenome.fa
+      # cat original_single_contig_mitogenome.fa | while read L; do  echo \$L; read L; echo "\$L" | rev | tr "ATGC" "TACG" ; done > single_contig_mitogenome.fa
+
+    fi
+    """
+}
+
+process ANNOTATEMITOGENOME {
+    // Copies output file in output folder
+    publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
+
+    // Process label
+    label 'fast'
+
+    // If this process fails, it does not end the whole pipeline
+    errorStrategy 'finish'
+
+    // Name of read files
+    tag "$params.job_name"
+
+    input:
+    // Fasta file of assembled genome
+    path mitogenome
+
+    output:
+    // Mitochondrial genome
+    path("mitos_output"), emit: mitos_out
+
+
+    script:
+    """
+    mkdir -p mitos_output
+    runmitos.py -i $mitogenome -o mitos_output -r $params.mitos_reference -R $baseDir -c $params.genetic_code > mitos_output.txt
+    """
+}
+
+process MITOSFORMATTING {
+    // Copies output file in output folder
+    publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
+
+    // Process label
+    label 'fast'
+
+    // If this process fails, it does not end the whole pipeline
+    errorStrategy 'finish'
+
+    // Name of read files
+    tag "$params.job_name"
+
+    input:
+    // Fasta file of assembled genome
+    path mitos_out_dir
+    tuple val(name), path(rawreads)
+
+    output:
+    // Mitochondrial genome
+    path("*")
+
+    """
+    mkdir -p individual_genes_nuc
+    mkdir -p individual_genes_prot
+    if [[ "$params.species_id" ]]
+    then
+      id=\$( echo "$params.species_id" )
+    else
+      id=\$( echo "${rawreads[0].simpleName}" )
+    fi
+    sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.fas | sed 's/(.*//' > individual_genes_nuc/result.fas
+    sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.faa | sed 's/(.*//' > individual_genes_prot/result.faa
+    cat individual_genes_nuc/result.fas | grep '^>' | sed 's/^.*@//' > individual_genes_nuc.txt
+    while read -r line; do gene=\$( echo "\$line" );  bfg "\$gene" individual_genes_nuc/result.fas > individual_genes_nuc/\$gene.fna; done < individual_genes_nuc.txt
+    cat individual_genes_prot/result.faa | grep '^>' | sed 's/^.*@//' > individual_genes_prot.txt
+    while read -r line; do gene=\$( echo "\$line" );  bfg "\$gene" individual_genes_prot/result.faa > individual_genes_prot/\$gene.faa; done < individual_genes_prot.txt
+    if [[ -f individual_genes_nuc/nad4.fna ]]
+    then
+    bfg -v -F nad4l individual_genes_nuc/nad4.fna > nad4.fna
+    mv nad4.fna individual_genes_nuc/nad4.fna
+    fi
+    if [[ -f individual_genes_prot/nad4.faa ]]
+    then
+    bfg -v -F nad4l individual_genes_prot/nad4.faa > nad4.faa
+    mv nad4.faa individual_genes_prot/nad4.faa
+    fi
+    if grep -q '\\-' "mitos_output/result.geneorder"
+    then
+      cat mitos_output/result.geneorder > mitos_output/original_result.geneorder
+      sed -i -e 's/-//g' mitos_output/result.geneorder
+    fi
+    if grep -q 'cox1' "mitos_output/result.geneorder"
+    then
+      grep -v '^>' mitos_output/result.geneorder > mitos_output/current_order.txt
+      while read -r gene_order; do
+          if [[ \$( cat mitos_output/current_order.txt | awk '{print \$1;}' ) == *"cox1"* ]]
+          then
+              cat mitos_output/current_order.txt > mitos_output/adjusted_result.geneorder
+          else
+              last_gene=\$( awk '{ print \$NF }' mitos_output/current_order.txt )
+              new_order=\$( sed "s/\\<\$last_gene\\>//" mitos_output/current_order.txt )
+              echo "\$last_gene \$new_order" > mitos_output/current_order.txt
+          fi
+      done < mitos_output/current_order.txt
+    fi
     """
 }
 
@@ -398,15 +725,11 @@ process ENDOSYMBIONTGENOMEQUALITY {
 
     input:
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
-    tuple val(name), path(endosym)
+    path endosym
 
     output:
     // All files created by BUSCO are output
     path 'qc/*'
-
-    when:
-    // This process is only executed if the last quality assessment is not skipped
-    ! params.skip_assembly_quality
 
     script:
     // BUSCO command (see BUSCO documentation for details)
@@ -416,44 +739,7 @@ process ENDOSYMBIONTGENOMEQUALITY {
 
 }
 
-process HOSTMITOGENOMEQUALITY {
 
-    /* 
-        Process Description:
-        Quality assessment of found host mitogenome using quast
-    */
-
-    // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/host_assembly", mode: 'copy'
-
-    // Process label
-    label 'normal'
-
-    // If this process fails, it does not end the whole pipeline
-    errorStrategy 'finish'
-
-    // Name of read files
-    tag "$params.job_name"
-
-    input:
-    // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the host mitogenome
-    tuple val(name), path(host)
-
-    output:
-    // All files created by quast are output
-    file '*'
-
-    when:
-    // This process is only executed if the last quality assessment is not skipped and the endosymbiont only mode is not activated
-    ! params.skip_assembly_quality && ! params.endosymbiont_only
-
-    script:
-    // quast command (see quast documentation for details)
-    """
-    quast.py $host
-    """
-
-}
 
 process READMAPPINGFORCOVERAGE{
 
@@ -475,7 +761,7 @@ process READMAPPINGFORCOVERAGE{
     // A tuple containing the name of the raw/trimmed read files and the files themself
     tuple val(name), path(reads)
     // A tuple containing the name of the raw/trimmed read files and the contigs belonging to the endosymbiont genome
-    tuple val(name), path(assembled_endosymbiont)
+    path assembled_endosymbiont
 
     output:
     // The log file created by bowtie2 is output
@@ -519,9 +805,9 @@ process COVERAGEESTIMATE {
     // log.txt file from previous process
     path stats
     // A tuple containing the name of the raw/trimmed read files and the files themself
-    tuple val(name_dump), path(reads)
+    tuple val(name), path(reads)
     // A .fa file containing the assembled endosymbiont genome
-    tuple val(name), path(assembled_endosymbiont)
+    path assembled_endosymbiont 
 
     output:
     // The process creates a file containign the coverage which is output
@@ -564,7 +850,7 @@ process CHECKENDOSYMBIONT {
 
     input:
     // A .fa file containing the endosymbiont genome
-    tuple val(name), path(endosymbiont_genome)
+    path endosymbiont_genome
 
     output:
     path '*'
@@ -577,28 +863,31 @@ process CHECKENDOSYMBIONT {
 }
 
 workflow {
-
-    RAWQC(rawReads)
-    TRIMMING(rawReads)
+    RAWQC(ch_rawReads)
+    TRIMMING(ch_rawReads)
     TRIMMEDQC(TRIMMING.out)
-    if (params.skip_trimming) {
-        DENOVOASSEMBLY(rawReads, params.kmers) }
+    if (!params.contigs){
+      DENOVOASSEMBLY(TRIMMING.out, params.kmers) 
+      contigs = DENOVOASSEMBLY.out
+      }
     else {
-        DENOVOASSEMBLY(TRIMMING.out, params.kmers) }
-    ENDOSYMBIONTCONTIGFILTERING(DENOVOASSEMBLY.out)
-    endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
-    ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
-    CHECKENDOSYMBIONT(endosymbiont_genome)
-    if (params.skip_trimming) { 
-        READMAPPINGFORCOVERAGE(rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
-        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, rawReads, ENDOSYMBIONTCONTIGFILTERING.out)
+      contigs = ch_contigs
     }
-    else {
-        READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
-        COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
+    if (params.mode == "endo" || params.mode == "both" ){
+      ENDOSYMBIONTCONTIGFILTERING(contigs)
+      endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
+      ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
+      CHECKENDOSYMBIONT(endosymbiont_genome)
+      READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
+      COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
     }
-    HOSTMITOGENOMEFILTERING(DENOVOASSEMBLY.out)
-    HOSTMITOGENOMEQUALITY(HOSTMITOGENOMEFILTERING.out.host_filtered)
+    if (params.mode == "mito" || params.mode == "both" ){
+      EXTRACTMITOGENOME(contigs)
+      REASSEMBLEMITOGENOME(contigs, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
+      STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
+      ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
+      MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, TRIMMING.out)
+    }
 }
 
 workflow.onComplete {
