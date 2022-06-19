@@ -10,43 +10,57 @@ project_dir = projectDir
 def helpMessage() {
     log.info"""
     Description:
-        An easy to use pipeline to separate endosymbiont genomes from their host's
+        This pipeline separates endosymbiont prokaryotic genomes from their respective eukaryotic host mitogenome based on raw Illumina reads. It performs raw- and trimmed read quality control, adapter trimming, de-novo assembly, contig sorting and assembly quality assessment on paired short read sequence data.
     Pipeline summary:
-        1. Trimming using TrimGalore!
-        2. Read quality control using FastQC
-        3. De Novo assembly using megahit
-        4. Filtering endosymbiont genome using blastn
-        5. Filtering host mitogenome using blastn
-        6. Read mapping for coverage estimate using bowtie2
-        7. Coverage estimate
-        8. Assembly quality assessment using BUSCO
+         1. Raw reads quality control using FastQC
+         2. Trimming using TrimGalore!
+         3. trimmed read quality control using FastQC
+         4. De Novo assembly using SPAdes
+         5. Contig sorting based on endosymbiont reference genome using blastn and bfg
+         6. Read mapping for coverage estimate using bowtie2
+         7. Endosymbiont genome coverage estimate
+         8. Endosymbiont genome quality assessment using BUSCO and CheckM
+         9. Mitogenome extraction using blastn and bfg
+        10. Mitogenome reassembly by NOVOPlasty
+        11. Mitogenome strand control
+        12. Mitogenome annotation with MITOS
+        13. MITOS output formatting
     Usage:
-        nextflow run main.nf --reads '*_R{1,2}\\.fastq.gz' --endosymbiont_reference '*_endosymRef\\.fna' --host_reference '*_hostRef\\.fna'
+        nextflow run main.nf -profile local
         
     Mandatory arguments:
         --reads             path to one or more sets of paired-ended reads (valid
                             file types: .fastq.gz', '.fq.gz', '.fastq', or '.fq')
+                            (default: $params.reads)
         --endosymbiont_reference
-                            path to one or more reference genomes for the endosymbiont
-                            assembly (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
+                            path to a reference genome for the endosymbiont
+                            (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
+                            (default: $params.endosymbiont_reference)
+        --mitogenome_reference
     Input/output options:
         --output            path to a directory which the results are written to
                             (default: $params.output)
     Resource allocation:
-        --memory            memory limit for the assembly step in GB (default:
+        --max_memory        memory limit for the pipeline step in GB (default:
                             $params.max_memory)
-        --threads           maximum number of threads to be used by the pipeline
+        --max_cpus          maximum number of threads to be used by the pipeline
                             (default: '$params.max_cpus')
     Flow control:
-        --endosymbiont_only
-                            skip processing of reads not belonging to the endosymbiont (default: $params.endosymbiont_only)
-        --skip_coverage     skip coverage estimate step (default: $params.skip_coverage)
-        --skip_trimming     skip trimming step (default: $params.skip_trimming)
-        --skip_qc           skip reads quality assessment (default: $params.skip_qc)
-        --skip_endosymbiont_assembly
-                            skip endosymbiont assembly step (default: $params.skip_endosymbiont_assembly)
-        --skip_assembly_quality
-                            skip assembly quality assessment (default: $params.skip_assembly_quality)
+        --mode
+        --contigs
+    Process specific arguments:
+        --trim_length
+        --trim_quality
+        --trim_adapter
+        --trim_phred64
+        --trim_clip_R1
+        --trim_three_prime_clip_R1
+        --trim_clip_R2
+        --trim_three_prime_clip_R2
+        --kmers
+        --meta
+        --min_blast_wordsize
+        --max_blast_wordsize
     Miscellaneous:
         --help              display this help message and exit
         --version           display the pipeline's version number and exit
@@ -860,19 +874,19 @@ workflow {
       contigs = ch_contigs
     }
     if (params.mode == "endo" || params.mode == "both" ){
-    ENDOSYMBIONTCONTIGFILTERING(contigs)
-    endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
-    ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
-    CHECKENDOSYMBIONT(endosymbiont_genome)
-    READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
-    COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
+      ENDOSYMBIONTCONTIGFILTERING(contigs)
+      endosymbiont_genome = ENDOSYMBIONTCONTIGFILTERING.out
+      ENDOSYMBIONTGENOMEQUALITY(endosymbiont_genome)
+      CHECKENDOSYMBIONT(endosymbiont_genome)
+      READMAPPINGFORCOVERAGE(TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
+      COVERAGEESTIMATE(READMAPPINGFORCOVERAGE.out, TRIMMING.out, ENDOSYMBIONTCONTIGFILTERING.out)
     }
     if (params.mode == "mito" || params.mode == "both" ){
-    EXTRACTMITOGENOME(contigs)
-    REASSEMBLEMITOGENOME(contigs, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
-    STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
-    ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
-    MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, TRIMMING.out)
+      EXTRACTMITOGENOME(contigs)
+      REASSEMBLEMITOGENOME(contigs, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
+      STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
+      ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
+      MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, TRIMMING.out)
     }
 }
 

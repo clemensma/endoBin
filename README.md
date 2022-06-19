@@ -42,10 +42,14 @@ This will run the pipeline with default commands and default data. All required 
 3. Trimmed reads quality control ([FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
 4. De Novo assembly ([SPAdes](https://cab.spbu.ru/software/spades/))
 5. Contig sorting based on endosymbiont reference genome ([blastn](https://blast.ncbi.nlm.nih.gov/Blast.cgi), [bfg](https://github.com/fethalen/better_fasta_grep))
-7. Read mapping for coverage estimate ([bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml))
-8. Coverage estimate
-9. Endosymbiont genome quality assessment ([BUSCO](https://busco.ezlab.org/), [CheckM](https://ecogenomics.github.io/CheckM/))
-10. Host mitogenome quality assessment ([QUAST](http://bioinf.spbau.ru/quast))
+6. Read mapping for coverage estimate ([bowtie2](http://bowtie-bio.sourceforge.net/bowtie2/index.shtml))
+7. Coverage estimate
+8. Endosymbiont genome quality assessment ([BUSCO](https://busco.ezlab.org/), [CheckM](https://ecogenomics.github.io/CheckM/))
+9. Mitogenome extraction ([blastn](https://blast.ncbi.nlm.nih.gov/Blast.cgi), [bfg](https://github.com/fethalen/better_fasta_grep))
+10. Mitogenome reassembly ([NOVOPlasty](https://github.com/ndierckx/NOVOPlasty))
+11. Mitogenome strand control ([blastn](https://blast.ncbi.nlm.nih.gov/Blast.cgi))
+12. Mitogenome annotation ([MITOS](http://mitos.bioinf.uni-leipzig.de/index.py))
+13. Formatting of MITOS output ([blastn](https://blast.ncbi.nlm.nih.gov/Blast.cgi))
 
 ## Input files
 
@@ -81,7 +85,7 @@ If requirements are met, create a batch file as given in the examples directory 
 
 * This pipeline supports the two profiles `local` and `gwdg_cluster`
 * `local` is using Docker as a container service.
-* `gwdg_cluster` is using Singularity as a container service and the executer SLURM.
+* `slurm` is using Singularity as a container service and the executer SLURM (intended for HPC use).
 
 Example:
 
@@ -171,14 +175,6 @@ Example:
 
     $ nextflow run main.nf --meta true --kmers [71, 81, 91]
 
-### `--mitogenome_bait`
-
-* Sets the bait sequence for filtering the mitogenome from the de novo assembly.
-* By default it is set to the endoMiner location `$projectDir/seqs/cox1.fa` .
-
-Example:
-
-    $ nextflow run main.nf --mitogenome_bait 'seqs/cox1.fa' -profile local
 
 ### `--min_blast_wordsize` and `--max_blast_wordsize`
 
