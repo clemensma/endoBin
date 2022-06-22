@@ -367,7 +367,7 @@ process EXTRACTMITOGENOME {
 
     for file in mg_candidate*
     do
-      if [[ \$(grep -c  '^>' \$file) ==  '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) > '14000' ]]
+      if [[ \$(grep -c  '^>' \$file) -eq '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) -gt '14000' ]]
       then
         cat \$file > mito_candidate_mitogenome.fa
       fi
