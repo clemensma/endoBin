@@ -370,10 +370,12 @@ process EXTRACTMITOGENOME {
       if [[ \$(grep -c  '^>' \$file) -eq '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) -gt '14000' ]]
       then
         cat \$file > mito_candidate_mitogenome.fa
+        echo "Found the mitogenome on a single contig."
       fi
     done
     if [[ ! -f mito_candidate_mitogenome.fa ]]
     then
+      echo "Starting search for closest mitogenome size match."
       for file in mg_candidate_covcut_100_*
       do
         grep -v  '^>' \$file | wc -m
@@ -387,6 +389,7 @@ process EXTRACTMITOGENOME {
           break
         fi
       done
+      echo "Finished search for closest mitogenome size match (cov 100)."
       for file in mg_candidate_covcut_50_*
       do
         grep -v  '^>' \$file | wc -m
@@ -400,9 +403,11 @@ process EXTRACTMITOGENOME {
           break
         fi
       done
+      echo "Finished search for closest mitogenome size match (cov 50)."
     fi
     if [[ ! -f mito_candidate_mitogenome.fa ]]
     then
+      echo "Starting search for highest contig avg size."
       for blastn_result in mg_candidate_covcut_100_*
       do
               grep '^>' "\$blastn_result" > covcut_100_header_list.txt
@@ -412,7 +417,9 @@ process EXTRACTMITOGENOME {
               done < covcut_100_header_list.txt > "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt"
               awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt" > "\${blastn_result}_covcut_100_avg_len.txt"
       done
+      echo "Determined the average nucleotide size per contig for each blast result (cov 100)."
       cat *_covcut_100_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_100_highest_avg.txt
+      echo "Saved the highest average to the file covcut_100_highest_avg.txt (cov 100)."
       for avg_len in *_covcut_100_avg_len.txt
       do
         if [[ \$(cat "\$avg_len") = \$(cat covcut_100_highest_avg.txt) ]]
@@ -421,16 +428,19 @@ process EXTRACTMITOGENOME {
             cat \$novoplasty_seed > mito_candidate_covcut_100_contig_match.fa
         fi
       done
+      echo "Created the file mito_candidate_covcut_100_contig_match.fa (3/4)."
       for blastn_result in mg_candidate_covcut_50_*
       do
-              grep '^>' "\$blastn_result" > covcut_50_header_list.txt
-              while read -r header
-                  do
-                  bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
-              done < covcut_50_header_list.txt > "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt"
-              awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt" > "\${blastn_result}_covcut_50_avg_len.txt"
+        grep '^>' "\$blastn_result" > covcut_50_header_list.txt
+        while read -r header
+            do
+            bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
+        done < covcut_50_header_list.txt > "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt"
+        awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt" > "\${blastn_result}_covcut_50_avg_len.txt"
       done
+      echo "Determined the average nucleotide size per contig for each blast result (cov 50)."
       cat *_covcut_50_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_50_highest_avg.txt
+      echo "Saved the highest average to the file covcut_50_highest_avg.txt (cov 50)."
       for avg_len in *_covcut_50_avg_len.txt
       do
         if [[ \$(cat "\$avg_len") = \$(cat covcut_50_highest_avg.txt) ]]
@@ -439,9 +449,11 @@ process EXTRACTMITOGENOME {
             cat \$novoplasty_seed > mito_candidate_covcut_50_contig_match.fa
         fi
       done
+      echo "Created the file mito_candidate_covcut_50_contig_match.fa (4/4)."
     fi
-    if [[ \$(grep -v  '^>' mito_candidate_covcut_50_size_match.fa | wc -m) < '2000' ]] && [[ ! -f mito_candidate_mitogenome.fa ]]
+    if [[ \$(grep -v  '^>' mito_candidate_covcut_50_size_match.fa | wc -m) -lt '2000' ]] && [[ ! -f mito_candidate_mitogenome.fa ]]
     then
+        echo "Starting analysis with coverage cutoff 10."
         cat $contigs | bfg "cov_[1-9][0-9]{1,}\\.[0-9]+" > cov_10_plus.fa
       for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}
         do
