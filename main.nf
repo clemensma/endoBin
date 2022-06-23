@@ -410,12 +410,15 @@ process EXTRACTMITOGENOME {
       echo "Starting search for highest contig avg size."
       for blastn_result in mg_candidate_covcut_100_*
       do
+              if [[ \$(cat \$blastn_result | wc -m) != '0' ]]
+              then
               grep '^>' "\$blastn_result" > covcut_100_header_list.txt
               while read -r header
                   do
                   bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
               done < covcut_100_header_list.txt > "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt"
               awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_100_nuc_per_header.txt" > "\${blastn_result}_covcut_100_avg_len.txt"
+              fi
       done
       echo "Determined the average nucleotide size per contig for each blast result (cov 100)."
       cat *_covcut_100_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_100_highest_avg.txt
@@ -431,12 +434,15 @@ process EXTRACTMITOGENOME {
       echo "Created the file mito_candidate_covcut_100_contig_match.fa (3/4)."
       for blastn_result in mg_candidate_covcut_50_*
       do
+        if [[ \$(cat \$blastn_result | wc -m) != '0' ]]
+        then
         grep '^>' "\$blastn_result" > covcut_50_header_list.txt
         while read -r header
             do
             bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
         done < covcut_50_header_list.txt > "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt"
         awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_50_nuc_per_header.txt" > "\${blastn_result}_covcut_50_avg_len.txt"
+        fi
       done
       echo "Determined the average nucleotide size per contig for each blast result (cov 50)."
       cat *_covcut_50_avg_len.txt | sort -gr | head -1 | cut -d ' ' -f3 > covcut_50_highest_avg.txt
