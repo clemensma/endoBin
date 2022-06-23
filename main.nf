@@ -549,7 +549,7 @@ process REASSEMBLEMITOGENOME {
       for i in "\${candidate_list[@]}"
       do
         cat \$i > split_mitogenome.fa
-        NOVOPlasty.pl -c config.txt
+        perl NOVOPlasty3.7.pl -c config.txt
         mkdir NOVOPlasty_run_\$i
         mv contigs_tmp_Mitogenome.txt log_Mitogenome.txt NOVOPlasty_run_\$i
         if [[ -f "Merged_contigs_Mitogenome.txt" ]]
@@ -570,7 +570,7 @@ process REASSEMBLEMITOGENOME {
           bfg -F \$contig Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
           mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
         fi
-        if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) > '14000' ]]
+        if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt '14000' ]]
         then
           break
         fi
