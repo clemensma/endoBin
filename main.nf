@@ -548,31 +548,38 @@ process REASSEMBLEMITOGENOME {
       candidate_list=($mitogenomes)
       for i in "\${candidate_list[@]}"
       do
-        cat \$i > split_mitogenome.fa
-        perl NOVOPlasty3.7.pl -c config.txt
-        mkdir NOVOPlasty_run_\$i
-        mv contigs_tmp_Mitogenome.txt log_Mitogenome.txt NOVOPlasty_run_\$i
-        if [[ -f "Merged_contigs_Mitogenome.txt" ]]
-        then
-          mv Merged_contigs_Mitogenome.txt NOVOPlasty_run_\$i
-        fi
-        if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
-        then
-          cat Circularized_assembly_1_Mitogenome.fasta > single_contig_mitogenome.fa
-          mv Circularized_assembly_1_Mitogenome.fasta NOVOPlasty_run_\$i
-        elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
-        then
-          cat Uncircularized_assemblies_1_Mitogenome.fasta > single_contig_mitogenome.fa
-          mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$i
-        elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
-        then
-          contig=\$( head -n 1 Contigs_1_Mitogenome.fasta )
-          bfg -F \$contig Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
-          mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
-        fi
-        if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt '14000' ]]
-        then
-          break
+        if [[ \$(grep -c  '^>' \$file) -eq '1' ]]
+        then 
+          mkdir NOVOPlasty_run_\$i
+          cat \$i > single_contig_mitogenome.fa
+          mv single_contig_mitogenome.fa NOVOPlasty_run_\$i
+        else
+          cat \$i > split_mitogenome.fa
+          perl NOVOPlasty3.7.pl -c config.txt
+          mkdir NOVOPlasty_run_\$i
+          mv contigs_tmp_Mitogenome.txt log_Mitogenome.txt NOVOPlasty_run_\$i
+          if [[ -f "Merged_contigs_Mitogenome.txt" ]]
+          then
+            mv Merged_contigs_Mitogenome.txt NOVOPlasty_run_\$i
+          fi
+          if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
+          then
+            cat Circularized_assembly_1_Mitogenome.fasta > single_contig_mitogenome.fa
+            mv Circularized_assembly_1_Mitogenome.fasta NOVOPlasty_run_\$i
+          elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
+          then
+            cat Uncircularized_assemblies_1_Mitogenome.fasta > single_contig_mitogenome.fa
+            mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$i
+          elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
+          then
+            contig=\$( head -n 1 Contigs_1_Mitogenome.fasta )
+            bfg -F \$contig Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
+            mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
+          fi
+          if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt '14000' ]]
+          then
+            break
+          fi
         fi
       done
     fi
