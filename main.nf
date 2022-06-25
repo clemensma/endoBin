@@ -548,7 +548,7 @@ process REASSEMBLEMITOGENOME {
       candidate_list=($mitogenomes)
       for i in "\${candidate_list[@]}"
       do
-        if [[ \$(grep -c  '^>' \$file) -eq '1' ]]
+        if [[ \$(grep -c  '^>' \$i) -eq '1' ]]
         then 
           mkdir NOVOPlasty_run_\$i
           cat \$i > single_contig_mitogenome.fa
