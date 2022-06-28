@@ -555,7 +555,7 @@ process REASSEMBLEMITOGENOME {
           mv single_contig_mitogenome.fa NOVOPlasty_run_\$i
         else
           cat \$i > split_mitogenome.fa
-          perl NOVOPlasty3.7.pl -c config.txt
+          perl /usr/bin/NOVOPlasty3.7.pl -c config.txt
           mkdir NOVOPlasty_run_\$i
           mv contigs_tmp_Mitogenome.txt log_Mitogenome.txt NOVOPlasty_run_\$i
           if [[ -f "Merged_contigs_Mitogenome.txt" ]]
