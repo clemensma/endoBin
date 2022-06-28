@@ -87,12 +87,12 @@ def helpMessage() {
                                            Examples: one K-mer: [81], multiple K-mers: [71, 81, 91]
         --meta                             Required for metagenomic sample data (default: true)
     
-      //Blastn
+      //Mitogenome extraction (BLASTn)
         --min_blast_wordsize <value>       Minimum word size word size used for blastn search (default: $params.min_blast_wordsize)
         --max_blast_wordsize <value>       Maximum word size word size used for blastn search (default: $params.max_blast_wordsize)
         --nucleotide_size <value>          Estimated nucleotide count of target mitochondrion (default: $params.nucleotide_size)
   
-      //NOVOPlasty
+      //Mitogenome reassembly (NOVOPlasty)
         --min_size <value>                 Estimated minimum nucleotide count of target mitochondrion (default: $params.min_size)
         --max_size <value>                 Estimated maximum nucleotide count of target mitochondrion (default: $params.max_size)
         --kmer_size <value>                K-mer size used for reassembly (default: $params.kmer_size)
