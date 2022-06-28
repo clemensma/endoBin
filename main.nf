@@ -25,32 +25,39 @@ def helpMessage() {
         11. Mitogenome strand control
         12. Mitogenome annotation with MITOS
         13. MITOS output formatting
+
     Usage:
         nextflow run main.nf -profile local
         
-        
-    Input: nextflow run main.nf --reads '<reads>.fasta' --endosymbiont_reference <reference_endosymbiont>.fasta --mitogenome <reference_mito>.fasta
-       [--help] [--output <dir>] [--contigs <contigs>.fasta] [-profile <name>] [--max_memory <value>.GB] [--max_cpus <value>]
-       [--max_retries <value>] [--max_time '<value>.d'] [--trim_length <value>] [--trim_quality <value>] 
-       [--trim_adapter <value>] [--trim_phred64] [--trim_clip_R1 <value>] [--trim_three_prime_clip_R1 <value>]
-       [--trim_clip_R2 <value>] [--trim_three_prime_clip_R2 <value>] [--kmers [<value>]] [--meta]
-       [--min_blast_wordsize <value>] [--max_blast_wordsize <value>] [--nucleotide_size <value>][--min_size <value> ]
-       [--max_size <value>] [--kmer_size <value>] [--read_length <value>] [--insert_size <value>] 
+    Input:
+        nextflow run main.nf --reads '<reads>.fasta' --endosymbiont_reference <reference_endosymbiont>.fasta --mitogenome_reference <reference_mito>.fasta
+        [--help] [--output <dir>] [--contigs <contigs>.fasta] [-profile <name>] [--max_memory <value>.GB] [--max_cpus <value>]
+        [--max_retries <value>] [--max_time '<value>.d'] [--trim_length <value>] [--trim_quality <value>] 
+        [--trim_adapter <value>] [--trim_phred64] [--trim_clip_R1 <value>] [--trim_three_prime_clip_R1 <value>]
+        [--trim_clip_R2 <value>] [--trim_three_prime_clip_R2 <value>] [--kmers [<value>]] [--meta]
+        [--min_blast_wordsize <value>] [--max_blast_wordsize <value>] [--nucleotide_size <value>][--min_size <value> ]
+        [--max_size <value>] [--kmer_size <value>] [--read_length <value>] [--insert_size <value>] 
 
     Mandatory arguments:
 
-        --reads '<reads>.fasta'                       Path to one or more sets of paired-ended reads (default: $params.reads)
+        --reads '<reads>.fasta'                       Path to one or more sets of paired-ended reads
                                                       (valid file types: .fastq.gz', '.fq.gz', '.fastq', or '.fq')
-        --endosymbiont_reference <endosymbiont>.fasta Path to a reference genome for the endosymbiont (default: $params.endosymbiont_reference)
+                                                      (default: $params.reads)
+
+        --endosymbiont_reference <endosymbiont>.fasta Path to a reference genome for the endosymbiont
                                                       (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')
-        --mitogenome <relatedMito>.fasta              Path to a reference genome for the host species (default: $params.mitogenome)
-  
+                                                      (default: $params.endosymbiont_reference)
+
+        --mitogenome_reference <relatedMito>.fasta    Path to a reference genome for the host species
+                                                      (valid file type extensions: '.fa', '.fna', '.fasta', '.faa')  
+                                                      (default: $params.mitogenome_reference)
+
     Optional arguments:
 
       //General
         --help                             Print help menu and exit
         --version                          Display the pipeline's version number and exit
-        --output <dir>                     Specify output directory (default: $params)  
+        --output <dir>                     Specify output directory (default: $params.output)  
   
       //Flow control
         --mode <name>                      Select 'endo' or 'mito' to limit endosymbiont identification to the one specified (default: both)
@@ -58,14 +65,14 @@ def helpMessage() {
         -profile <name>                    Select 'local' for Docker or 'slurm' for Singularity
   
       //Resource allocation
-        --max_memory <value>.GB            Maximum memory limit in GB                   (default: ${params.max_memory}.GB)
+        --max_memory <value>.GB            Maximum memory limit in GB                   (default: $params.max_memory)
         --max_cpus <value>                 Maximum number of threads                    (default: $params.max_cpus)
         --max_retries <value>              Maximum number of process retries            (default: $params.max_retries)
-        --max_time '<value>.d'             Maximum runtime per process in days on a HPC (default: ${params.max_time}.d)
+        --max_time '<value>.d'             Maximum runtime per process in days on a HPC (default: $params.max_time)
   
     Process specific arguments:
 
-    //Trimming (Trim Galore!)
+      //Trimming (Trim Galore!)
         --trim_length <value>              Remove reads shorter than specified             (default: $params.trim_length)
         --trim_quality <value>             Phred score threshold for quality trimming      (default: $params.trim_quality)
         --trim_adapter <value>             Specify adapter sequence to be trimmed          (default: auto-detect)
@@ -75,17 +82,17 @@ def helpMessage() {
         --trim_clip_R2 <value>             Cut off bases at the start of the reverse reads (default: $params.trim_clip_R2)
         --trim_three_prime_clip_R2 <value> Cut off bases at the end of the reverse reads   (default: $params.trim_three_prime_clip_R2)
 
-    // Assembly (SPAdes)
-        --kmers [<value>]                  A list of K-mer sizes to use for the assembly (default: [${params.kmers}])
+      //Assembly (SPAdes)
+        --kmers [<value>]                  A list of K-mer sizes to use for the assembly (default: $params.kmers)
                                            Examples: one K-mer: [81], multiple K-mers: [71, 81, 91]
         --meta                             Required for metagenomic sample data (default: true)
     
-    //Blastn
+      //Blastn
         --min_blast_wordsize <value>       Minimum word size word size used for blastn search (default: $params.min_blast_wordsize)
         --max_blast_wordsize <value>       Maximum word size word size used for blastn search (default: $params.max_blast_wordsize)
         --nucleotide_size <value>          Estimated nucleotide count of target mitochondrion (default: $params.nucleotide_size)
   
-    //NOVOPlasty
+      //NOVOPlasty
         --min_size <value>                 Estimated minimum nucleotide count of target mitochondrion (default: $params.min_size)
         --max_size <value>                 Estimated maximum nucleotide count of target mitochondrion (default: $params.max_size)
         --kmer_size <value>                K-mer size used for reassembly (default: $params.kmer_size)
