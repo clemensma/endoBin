@@ -606,9 +606,49 @@ process REASSEMBLEMITOGENOME {
             mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$i
           elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
           then
-            contig=\$( head -n 1 Contigs_1_Mitogenome.fasta )
-            bfg -F \$contig Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
-            mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
+            if [[ \$(grep -c  '^>' Contigs_1_Mitogenome.fasta) -eq '1' ]]
+            then
+              cat Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
+              mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
+            elif [[ \$(grep -c  '^>' Contigs_1_Mitogenome.fasta) -gt '1' ]]
+            then
+              COUNT="0"
+              grep "^>" Contigs_1_Mitogenome.fasta | while read -r header || [ -n "\$header" ]; do COUNT=\$((\$COUNT + 1)); echo \$header; echo \$header > contig_name_\${COUNT}.txt; done
+              COUNT="0"
+              for header in contig_name_*.txt
+              do
+                  COUNT=\$((\$COUNT + 1))
+                  search=\$( cat "\$header" )
+                  PRINT="0"
+                  while read line || [ -n "\$line" ]
+                  do
+                      if [[ "\$line" = "\$search" ]]
+                      then
+                          PRINT="1"
+                          echo \$line
+                          continue
+                      fi
+                      if [[ \$PRINT = "1" ]] && [[ \${line:0:1} != ">" ]]
+                      then
+                          echo \$line; else PRINT="0"
+                      fi
+                  done < Contigs_1_Mitogenome.fasta > contig_\${COUNT}.txt; done
+              rm contig_name_*.txt
+              for contig in contig_*.txt
+              do
+                grep -v "^>" \$contig | wc -m
+              done > contig_sizes.txt
+              largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
+              rm contig_sizes.txt
+              for contig in contig_*.txt
+              do
+                if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
+                then
+                  cat \$contig > single_contig_mitogenome.fa
+                  mv contig_*.txt Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$i
+                  cp single_contig_mitogenome.fa NOVOPlasty_run_\$i
+                fi
+              done
           fi
           if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt '14000' ]]
           then
