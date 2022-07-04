@@ -613,7 +613,12 @@ process REASSEMBLEMITOGENOME {
             elif [[ \$(grep -c  '^>' Contigs_1_Mitogenome.fasta) -gt '1' ]]
             then
               COUNT="0"
-              grep "^>" Contigs_1_Mitogenome.fasta | while read -r header || [ -n "\$header" ]; do COUNT=\$((\$COUNT + 1)); echo \$header; echo \$header > contig_name_\${COUNT}.txt; done
+              grep "^>" Contigs_1_Mitogenome.fasta | while read -r header || [ -n "\$header" ]
+              do
+                COUNT=\$((\$COUNT + 1))
+                echo \$header
+                echo \$header > contig_name_\${COUNT}.txt
+              done
               COUNT="0"
               for header in contig_name_*.txt
               do
@@ -632,7 +637,8 @@ process REASSEMBLEMITOGENOME {
                       then
                           echo \$line; else PRINT="0"
                       fi
-                  done < Contigs_1_Mitogenome.fasta > contig_\${COUNT}.txt; done
+                  done < Contigs_1_Mitogenome.fasta > contig_\${COUNT}.txt
+              done
               rm contig_name_*.txt
               for contig in contig_*.txt
               do
@@ -649,6 +655,7 @@ process REASSEMBLEMITOGENOME {
                   cp single_contig_mitogenome.fa NOVOPlasty_run_\$i
                 fi
               done
+            fi
           fi
           if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt '14000' ]]
           then
