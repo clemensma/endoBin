@@ -582,12 +582,17 @@ process REASSEMBLEMITOGENOME {
       candidate_list=($mitogenomes)
       for i in "\${candidate_list[@]}"
       do
-        if [[ \$(grep -c  '^>' \$i) -eq '1' ]]
+        if [[ \$(grep -c '^>' \$i) -eq '1' ]]
         then 
           mkdir NOVOPlasty_run_\$i
           cat \$i > single_contig_mitogenome.fa
           mv single_contig_mitogenome.fa NOVOPlasty_run_\$i
         else
+          if [[ \$(grep -v '^>' \$i | wc -m) -eq '0' ]] || [[ \$(grep -v '^>' \$i | wc -m) -gt '40000' ]]
+          then
+            rm \$i
+            continue
+          fi
           cat \$i > split_mitogenome.fa
           perl /usr/bin/NOVOPlasty3.7.pl -c config.txt
           mkdir NOVOPlasty_run_\$i
