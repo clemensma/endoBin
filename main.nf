@@ -401,10 +401,6 @@ process EXTRACTMITOGENOME {
           cat cov_50_plus.fa | bfg -f unique_seqid.txt > "blastn_covcut_50_wordsize_\$i.fa"
         fi
         cat cov_0_plus.fa | bfg -f unique_seqid.txt > "blastn_covcut_0_wordsize_\$i.fa"
-        if [[ \$(grep -v '^>' blastn_covcut_100_wordsize_\$i.fa | wc -m) ==  '0' ]] && [[ \$(grep -v '^>' blastn_covcut_50_wordsize_\$i.fa | wc -m) ==  '0' ]]
-        then
-          break
-        fi
     done
 
     for file in blastn_*
