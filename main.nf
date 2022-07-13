@@ -546,9 +546,10 @@ process REASSEMBLEMITOGENOME {
       cat assumed_complete_mitogenome.fa > single_contig_mitogenome.fa
     elif [[ ! -f assumed_complete_mitogenome.fa ]]
     then
-    threshold_085=\$( echo "$params.nucleotide_size*0.85" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
-    threshold_300=\$( echo "$params.nucleotide_size*3" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
-    counter='0'
+      calc_threshold_085=\$(( "$params.nucleotide_size"*17/20 ))
+      threshold_085=\$( echo \$calc_threshold_085 | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      calc_threshold_300=\$(( "$params.nucleotide_size*3" ))
+      threshold_300=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
 
       echo "Project:
       -----------------------
@@ -578,7 +579,9 @@ process REASSEMBLEMITOGENOME {
       Insert size auto      = yes
       Use Quality Scores    = no
       Output path           = " > config.txt
-      candidate_list=($mitogenomes)
+
+      counter='0'
+      candidate_list=($mitogenomes)    
       for i in "\${candidate_list[@]}"
       do
         counter=\$((\$counter + 1))
@@ -611,17 +614,12 @@ process REASSEMBLEMITOGENOME {
             mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$counter
           elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
           then
-            if [[ \$(grep -c '^>' Contigs_1_Mitogenome.fasta) -eq '1' ]]
-            then
-              cat Contigs_1_Mitogenome.fasta > single_contig_mitogenome.fa
-              mv Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$counter
-            elif [[ \$(grep -c '^>' Contigs_1_Mitogenome.fasta) -gt '1' ]]
-            then
+              echo "Mitogenome was not circularized."
+              separate_contigs () {
               COUNT="0"
-              grep "^>" Contigs_1_Mitogenome.fasta | while read -r header || [ -n "\$header" ]
+              grep "^>" \$input | sort | uniq | while read -r header || [ -n "\$header" ]
               do
                 COUNT=\$((\$COUNT + 1))
-                echo \$header
                 echo \$header > contig_name_\${COUNT}.txt
               done
               COUNT="0"
@@ -636,31 +634,52 @@ process REASSEMBLEMITOGENOME {
                       then
                           PRINT="1"
                           echo \$line
+                          search='re_set_variable'
                           continue
                       fi
                       if [[ \$PRINT = "1" ]] && [[ \${line:0:1} != ">" ]]
                       then
-                          echo \$line; else PRINT="0"
+                          echo \$line
+                      else
+                          PRINT='0'
                       fi
-                  done < Contigs_1_Mitogenome.fasta > contig_\${COUNT}.txt
+                  done < \$input > \${step}_NOVOPlasty_contig_\${COUNT}.fa
               done
               rm contig_name_*.txt
-              for contig in contig_*.txt
+              }
+
+              input="\$i"; step='pre'; separate_contigs
+              input='Contigs_1_Mitogenome.fasta'; step='post'; separate_contigs
+
+              for contig in *_NOVOPlasty_contig_*.fa
               do
                 grep -v "^>" \$contig | wc -m
               done > contig_sizes.txt
               largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
               rm contig_sizes.txt
-              for contig in contig_*.txt
+              for contig in *_NOVOPlasty_contig_*.fa
               do
                 if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
                 then
+                  cat \$contig > largest_contig.fa
                   cat \$contig > single_contig_mitogenome.fa
-                  mv contig_*.txt Contigs_1_Mitogenome.fasta NOVOPlasty_run_\$counter
+
+                  for file in *.fa
+                  do
+                    contig_value=\$( grep '^>' \$file | wc -l )
+                    nucleotide_value=\$( grep -v '^>' \$file | wc -m )
+                    echo "\$contig_value \$nucleotide_value \$file" > \${file}_stats.txt
+                  done
+                  stats=\$( cat *_stats.txt )
+                  echo "Contigs | Nucleotides | Filename
+                  \$stats" > stats.txt
+                  rm *_stats.txt
+
+                  mv *_NOVOPlasty_contig_*.fa largest_contig.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
                   cp single_contig_mitogenome.fa NOVOPlasty_run_\$counter
+
                 fi
               done
-            fi
           fi
           if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt "\$threshold_085" ]]
           then
@@ -669,7 +688,7 @@ process REASSEMBLEMITOGENOME {
         fi
       done
     fi
-      """
+    """
 }
 
 process STRANDCONTROL {
