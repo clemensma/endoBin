@@ -90,7 +90,7 @@ def helpMessage() {
       //Mitogenome extraction (BLASTn)
         --min_blast_wordsize <value>       Minimum word size word size used for blastn search (default: $params.min_blast_wordsize)
         --max_blast_wordsize <value>       Maximum word size word size used for blastn search (default: $params.max_blast_wordsize)
-        --nucleotide_size <value>          Estimated nucleotide count of target mitochondrion (default: $params.nucleotide_size)
+        --nucleotide_size <value>          Estimated nucleotide count of target mitochondrion (default: $params.mito_size)
   
       //Mitogenome reassembly (NOVOPlasty)
         --min_size <value>                 Estimated minimum nucleotide count of target mitochondrion (default: $params.min_size)
@@ -347,7 +347,7 @@ process ENDOSYMBIONTCONTIGFILTERING {
 
 process EXTRACTMITOGENOME {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
+    publishDir "${params.output}/$params.job_name/mitogenome/extraction", mode: 'copy'
 
     // Process label
     label 'fast'
@@ -372,10 +372,16 @@ process EXTRACTMITOGENOME {
     touch unique_seqid.txt
     touch possible_mitogenomes.fa
 
-    threshold_085=\$( echo "$params.nucleotide_size*0.85" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
-    threshold_100=\$( echo "$params.nucleotide_size" | awk '{printf("%d\\n",\$1 + 0.5)}' )
-    threshold_135=\$( echo "$params.nucleotide_size*1.35" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
-    threshold_200=\$( echo "$params.nucleotide_size*2" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
+    if [[ "$params.mito_min_size" = 'false' ]] || [[ "$params.mito_min_size" -gt "$params.mito_size" ]]
+    then
+      threshold_085=\$( echo "$params.mito_size*0.85" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
+    else
+      threshold_085="$params.mito_min_size"
+    fi
+
+    threshold_100=\$( echo "$params.mito_size" | awk '{printf("%d\\n",\$1 + 0.5)}' )
+    threshold_135=\$( echo "$params.mito_size*1.35" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
+    threshold_200=\$( echo "$params.mito_size*2" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
 
     if [[ "$params.contigs" = 'false' ]]
     then
@@ -515,7 +521,7 @@ process EXTRACTMITOGENOME {
 
 process REASSEMBLEMITOGENOME {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/mitogenome_extraction", mode: 'copy'
+    publishDir "${params.output}/${params.job_name}/mitogenome/reassembly", mode: 'copy'
 
     // Process label
     label 'normal'
@@ -542,9 +548,14 @@ process REASSEMBLEMITOGENOME {
       cat assumed_complete_mitogenome.fa > single_contig_mitogenome.fa
     elif [[ ! -f assumed_complete_mitogenome.fa ]]
     then
-      calc_threshold_085=\$(( "$params.nucleotide_size"*17/20 ))
-      threshold_085=\$( echo \$calc_threshold_085 | awk '{printf("%d\\n",\$1 + 0.5)}' )
-      calc_threshold_300=\$(( "$params.nucleotide_size*3" ))
+
+      if [[ "$params.mito_min_size" = 'false' ]] || [[ "$params.mito_min_size" -gt "$params.mito_size" ]]
+      then
+        threshold_085=\$( echo "$params.mito_size*0.85" | bc | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      else
+        threshold_085="$params.mito_min_size"
+      fi
+      calc_threshold_300=\$(( "$params.mito_size*3" ))
       threshold_300=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
 
       echo "Project:
@@ -584,8 +595,8 @@ process REASSEMBLEMITOGENOME {
         if [[ \$(grep -c '^>' \$i) -eq '1' ]]
         then 
           mkdir -p NOVOPlasty_run_\$counter
-          cat \$i > single_contig_mitogenome.fa
-          mv single_contig_mitogenome.fa NOVOPlasty_run_\$counter
+          cat \$i > largest_single_contig.fa
+          mv \$i largest_single_contig.fa NOVOPlasty_run_\$counter
         else
           if [[ \$(grep -v '^>' \$i | wc -m) -eq '0' ]] || [[ \$(grep -v '^>' \$i | wc -m) -gt "\$threshold_300" ]]
           then
@@ -602,12 +613,12 @@ process REASSEMBLEMITOGENOME {
           fi
           if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
           then
-            cat Circularized_assembly_1_Mitogenome.fasta > single_contig_mitogenome.fa
-            mv Circularized_assembly_1_Mitogenome.fasta NOVOPlasty_run_\$counter
+            cat Circularized_assembly_1_Mitogenome.fasta > largest_single_contig.fa
+            mv largest_single_contig.fa Circularized_assembly_1_Mitogenome.fasta NOVOPlasty_run_\$counter
           elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
           then
-            cat Uncircularized_assemblies_1_Mitogenome.fasta > single_contig_mitogenome.fa
-            mv Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$counter
+            cat Uncircularized_assemblies_1_Mitogenome.fasta > largest_single_contig.fa
+            mv largest_single_contig.fa Uncircularized_assemblies_1_Mitogenome.fasta NOVOPlasty_run_\$counter
           elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
           then
               echo "Mitogenome was not circularized."
@@ -657,39 +668,62 @@ process REASSEMBLEMITOGENOME {
               do
                 if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
                 then
-                  cat \$contig > largest_contig.fa
-                  cat \$contig > single_contig_mitogenome.fa
-
-                  for file in *.fa
-                  do
-                    contig_value=\$( grep '^>' \$file | wc -l )
-                    nucleotide_value=\$( grep -v '^>' \$file | wc -m )
-                    echo "\$contig_value \$nucleotide_value \$file" > \${file}_stats.txt
-                  done
-                  stats=\$( cat *_stats.txt )
-                  echo "Contigs | Nucleotides | Filename
-                  \$stats" > stats.txt
-                  rm *_stats.txt
-
-                  mv *_NOVOPlasty_contig_*.fa largest_contig.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
-                  cp single_contig_mitogenome.fa NOVOPlasty_run_\$counter
-
+                  cat \$contig > largest_single_contig.fa
                 fi
               done
+
+              for file in *.fa
+              do
+                contig_value=\$( grep '^>' \$file | wc -l )
+                nucleotide_value=\$( grep -v '^>' \$file | wc -m )
+                echo "\$contig_value \$nucleotide_value \$file" > \${file}_stats.txt
+              done
+              stats=\$( cat *_stats.txt )
+              echo "Contigs | Nucleotides | Filename
+              \$stats" > stats.txt
+              rm *_stats.txt
+    
+              mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
+
           fi
-          if [[ -f single_contig_mitogenome.fa ]] && [[ \$(grep -v  '^>' single_contig_mitogenome.fa | wc -m) -gt "\$threshold_085" ]]
+          if [[ -f NOVOPlasty_run_\${counter}/largest_single_contig.fa ]] && [[ \$(grep -v '^>' NOVOPlasty_run_\${counter}/largest_single_contig.fa | wc -m) -gt "\$threshold_085" ]]
           then
+            cat NOVOPlasty_run_\${counter}/largest_single_contig.fa > single_contig_mitogenome.fa
+            cp single_contig_mitogenome.fa NOVOPlasty_run_\${counter}
             break
           fi
         fi
       done
+
+      check_contigs=( NOVOPlasty_run_*/largest_single_contig.fa )
+      if [[ ! -f single_contig_mitogenome.fa ]] && [[ -f "\$check_contigs" ]]
+      then
+        touch largest_contigs_list.txt
+        for dir in NOVOPlasty_run_*/
+        do
+          if [[ -f "\${dir}"largest_single_contig.fa ]]
+          then
+            grep -v "^>" \${dir}largest_single_contig.fa | wc -m
+          fi
+        done > contig_sizes.txt
+        largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
+        rm contig_sizes.txt
+        for dir in NOVOPlasty_run_*/
+        do
+          if [[ \$(grep -v "^>" "\${dir}"largest_single_contig.fa | wc -m) = "\$largest_contig" ]]
+          then
+            cat "\${dir}"largest_single_contig.fa > single_contig_mitogenome.fa
+          fi
+        done
+      fi
+
     fi
     """
 }
 
 process STRANDCONTROL {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/strand_control", mode: 'copy'
+    publishDir "${params.output}/$params.job_name/mitogenome", mode: 'copy'
 
     // Process label
     label 'fast'
@@ -706,10 +740,7 @@ process STRANDCONTROL {
 
     output:
     // Mitochondrial genome
-    path('single_contig_mitogenome.fa'), emit: strand_tested_mitogenome
-    path('original_single_contig_mitogenome.fa') optional true
-    path('blast_output.txt')
-    path('blast_strands.txt')
+    path('mitogenome.fa'), emit: strand_tested_mitogenome
 
     script:
     """
@@ -726,15 +757,16 @@ process STRANDCONTROL {
     if [[ \$( head -n 1 blast_strands.txt ) == *'Strand=Plus/Minus'* ]]
     then
       cat single_contig_mitogenome.fa > original_single_contig_mitogenome.fa
-      # cat original_single_contig_mitogenome.fa | while read L; do  echo \$L; read L; echo "\$L" | rev | tr "ATGC" "TACG" ; done > single_contig_mitogenome.fa
-
+      # cat original_single_contig_mitogenome.fa | while read L; do  echo \$L; read L; echo "\$L" | rev | tr "ATGC" "TACG" ; done > mitogenome.fa
+    else
+      cat single_contig_mitogenome.fa > mitogenome.fa
     fi
     """
 }
 
 process ANNOTATEMITOGENOME {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
+    publishDir "${params.output}/$params.job_name/mitogenome/MITOS_annotation", mode: 'copy'
 
     // Process label
     label 'fast'
@@ -758,12 +790,13 @@ process ANNOTATEMITOGENOME {
     """
     mkdir -p mitos_output
     runmitos.py -i $mitogenome -o mitos_output -r $params.mitos_reference -R $baseDir -c $params.genetic_code > mitos_output.txt
+    mv mitos_output.txt mitos_output
     """
 }
 
 process MITOSFORMATTING {
     // Copies output file in output folder
-    publishDir "${params.output}/$params.job_name/MITOS_annotation", mode: 'copy'
+    publishDir "${params.output}/$params.job_name/mitogenome/MITOS_annotation", mode: 'copy'
 
     // Process label
     label 'fast'
