@@ -534,6 +534,68 @@ process REASSEMBLEMITOGENOME {
     path("NOVOPlasty_run_*"), type: 'dir' optional true
 
     """
+    separate_contigs () {
+    COUNT="0"
+    grep "^>" \$input | sort | uniq | while read -r header || [ -n "\$header" ]
+    do
+      COUNT=\$((\$COUNT + 1))
+      echo \$header > contig_name_\${COUNT}.txt
+    done
+    COUNT="0"
+    for header in contig_name_*.txt
+    do
+        COUNT=\$((\$COUNT + 1))
+        search=\$( cat "\$header" )
+        PRINT="0"
+        while read line || [ -n "\$line" ]
+        do
+            if [[ "\$line" = "\$search" ]]
+            then
+                PRINT="1"
+                echo \$line
+                search='re_set_variable'
+                continue
+            fi
+            if [[ \$PRINT = "1" ]] && [[ \${line:0:1} != ">" ]]
+            then
+                echo \$line
+            else
+                PRINT='0'
+            fi
+        done < \$input > \${step}_NOVOPlasty_contig_\${COUNT}.fa
+    done
+    rm contig_name_*.txt
+    }
+    
+    select_largest_contig () {
+    for contig in *_NOVOPlasty_contig_*.fa
+    do
+      grep -v "^>" \$contig | wc -m
+    done > contig_sizes.txt
+    largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
+    rm contig_sizes.txt
+    for contig in *_NOVOPlasty_contig_*.fa
+    do
+      if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
+      then
+        cat \$contig > largest_single_contig.fa
+      fi
+    done
+    }
+    
+    create_stats () {
+    for file in *.fa
+    do
+      contig_value=\$( grep '^>' \$file | wc -l )
+      nucleotide_value=\$( grep -v '^>' \$file | wc -m )
+      echo "\$contig_value \$nucleotide_value \$file" > \${file}_stats.txt
+    done
+    stats=\$( cat *_stats.txt )
+    echo "Contigs | Nucleotides | Filename
+    \$stats" > stats.txt
+    rm *_stats.txt
+    }
+
     if [[ -f mito_candidate_mitogenome.fa ]]
     then
       cat mito_candidate_mitogenome.fa > single_contig_mitogenome.fa
@@ -604,61 +666,12 @@ process REASSEMBLEMITOGENOME {
             mv Merged_contigs_Mitogenome.txt NOVOPlasty_run_\$counter
           fi
 
-          separate_contigs () {
-          COUNT="0"
-          grep "^>" \$input | sort | uniq | while read -r header || [ -n "\$header" ]
-          do
-            COUNT=\$((\$COUNT + 1))
-            echo \$header > contig_name_\${COUNT}.txt
-          done
-          COUNT="0"
-          for header in contig_name_*.txt
-          do
-              COUNT=\$((\$COUNT + 1))
-              search=\$( cat "\$header" )
-              PRINT="0"
-              while read line || [ -n "\$line" ]
-              do
-                  if [[ "\$line" = "\$search" ]]
-                  then
-                      PRINT="1"
-                      echo \$line
-                      search='re_set_variable'
-                      continue
-                  fi
-                  if [[ \$PRINT = "1" ]] && [[ \${line:0:1} != ">" ]]
-                  then
-                      echo \$line
-                  else
-                      PRINT='0'
-                  fi
-              done < \$input > \${step}_NOVOPlasty_contig_\${COUNT}.fa
-          done
-          rm contig_name_*.txt
-          }
-
-          select_largest_contig () {
-          for contig in *_NOVOPlasty_contig_*.fa
-          do
-            grep -v "^>" \$contig | wc -m
-          done > contig_sizes.txt
-          largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
-          rm contig_sizes.txt
-          for contig in *_NOVOPlasty_contig_*.fa
-          do
-            if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
-            then
-              cat \$contig > largest_single_contig.fa
-            fi
-          done
-          }
-
           if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
           then
             input="\$i"; step='pre'; separate_contigs
             input='Circularized_assembly_1_Mitogenome.fasta'; step='post'; separate_contigs
             select_largest_contig
-            seqkit stats *.fa > stats.txt
+            create_stats
             mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Circularized_assembly_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
@@ -666,7 +679,7 @@ process REASSEMBLEMITOGENOME {
             input="\$i"; step='pre'; separate_contigs
             input='Uncircularized_assemblies_1_Mitogenome.fasta'; step='post'; separate_contigs
             select_largest_contig
-            seqkit stats *.fa > stats.txt
+            create_stats
             mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Uncircularized_assemblies_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
@@ -675,7 +688,7 @@ process REASSEMBLEMITOGENOME {
               input="\$i"; step='pre'; separate_contigs
               input='Contigs_1_Mitogenome.fasta'; step='post'; separate_contigs
               select_largest_contig
-              seqkit stats *.fa > stats.txt
+              create_stats
               mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           fi
@@ -712,7 +725,7 @@ process REASSEMBLEMITOGENOME {
 
     fi
 
-    seqkit stats *.fa > stats.txt
+    create_stats
     """
 
 }
