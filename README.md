@@ -83,7 +83,7 @@ If requirements are met, create a batch file as given in the examples directory 
 
 ### `-profile`
 
-* This pipeline supports the two profiles `local` and `gwdg_cluster`
+* This pipeline supports the two profiles `local` and `slurm`
 * `local` is using Docker as a container service.
 * `slurm` is using Singularity as a container service and the executer SLURM (intended for HPC use).
 
