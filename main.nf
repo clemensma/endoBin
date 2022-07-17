@@ -901,6 +901,7 @@ process ENDOSYMBIONTGENOMEQUALITY {
     // BUSCO command (see BUSCO documentation for details)
     """
     busco -i $endosym -m genome -o qc -l rickettsiales_odb10 --offline --download_path $project_dir/seqs/busco_data
+    busco -i $endosym -m genome -o qc -l bacteria_odb10 --offline --download_path $project_dir/seqs/busco_data
     """
 
 }
