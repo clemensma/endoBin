@@ -336,11 +336,11 @@ process ENDOSYMBIONTCONTIGFILTERING {
     then
       cat $contigs > contigs.fa
     else
-      cat $contigs | bfg "cov_([1-9][3-9][0-9]*|[1-9][0-9][0-9]{1,}|[2-9][0-9])\\.[0-9]+" > contigs.fa
+      cat $contigs | better_fasta_grep "cov_([1-9][3-9][0-9]*|[1-9][0-9][0-9]{1,}|[2-9][0-9])\\.[0-9]+" > contigs.fa
     fi
       makeblastdb -in ${params.endosymbiont_reference} -title endosymbiont -parse_seqids -dbtype nucl -hash_index -out db
       blastn -query contigs.fa -db db -outfmt "10 qseqid" > seqid.txt
-      cat contigs.fa | bfg -F -f seqid.txt > endosymbiont_genome.fa
+      cat contigs.fa | better_fasta_grep -F -f seqid.txt > endosymbiont_genome.fa
     """
 }
 
@@ -389,8 +389,8 @@ process EXTRACTMITOGENOME {
 
     if [[ "$params.contigs" = 'false' ]]
     then
-      cat $contigs | bfg "cov_[5-9][0-9]{1,}\\.[0-9]+" > cov_50_to_99.fa
-      cat $contigs | bfg "cov_[1-9][0-9][0-9]{1,}\\.[0-9]+" > cov_100_plus.fa
+      cat $contigs | better_fasta_grep "cov_[5-9][0-9]{1,}\\.[0-9]+" > cov_50_to_99.fa
+      cat $contigs | better_fasta_grep "cov_[1-9][0-9][0-9]{1,}\\.[0-9]+" > cov_100_plus.fa
       cat cov_50_to_99.fa cov_100_plus.fa > cov_50_plus.fa
     fi
     cat $contigs > cov_0_plus.fa
@@ -407,10 +407,10 @@ process EXTRACTMITOGENOME {
         echo "made seqids unique"
         if [[ "$params.contigs" = 'false' ]]
         then
-          cat cov_100_plus.fa | bfg -f unique_seqid.txt > "blastn_covcut_100_wordsize_\$i.fa"
-          cat cov_50_plus.fa | bfg -f unique_seqid.txt > "blastn_covcut_50_wordsize_\$i.fa"
+          cat cov_100_plus.fa | better_fasta_grep -f unique_seqid.txt > "blastn_covcut_100_wordsize_\$i.fa"
+          cat cov_50_plus.fa | better_fasta_grep -f unique_seqid.txt > "blastn_covcut_50_wordsize_\$i.fa"
         fi
-        cat cov_0_plus.fa | bfg -f unique_seqid.txt > "blastn_covcut_0_wordsize_\$i.fa"
+        cat cov_0_plus.fa | better_fasta_grep -f unique_seqid.txt > "blastn_covcut_0_wordsize_\$i.fa"
     done
 
     for file in blastn_*
@@ -462,7 +462,7 @@ process EXTRACTMITOGENOME {
                 grep '^>' "\$blastn_result" > covcut_\${covcut}_header_list.txt
                 while read -r header
                     do
-                    bfg "\$header" "\$blastn_result" | grep -v '^>' | wc -m
+                    better_fasta_grep "\$header" "\$blastn_result" | grep -v '^>' | wc -m
                 done < covcut_\${covcut}_header_list.txt > "\${blastn_result%.fa}_covcut_\${covcut}_nuc_per_header.txt"
                 awk 'BEGIN{s=0;}{s+=\$1;}END{print s/NR;}' "\${blastn_result%.fa}_covcut_\${covcut}_nuc_per_header.txt" > "\${blastn_result}_covcut_\${covcut}_avg_len.txt"
                 fi
@@ -835,17 +835,17 @@ process MITOSFORMATTING {
     sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.fas | sed 's/(.*//' > individual_genes_nuc/result.fas
     sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.faa | sed 's/(.*//' > individual_genes_prot/result.faa
     cat individual_genes_nuc/result.fas | grep '^>' | sed 's/^.*@//' > individual_genes_nuc.txt
-    while read -r line; do gene=\$( echo "\$line" );  bfg "\$gene" individual_genes_nuc/result.fas > individual_genes_nuc/\$gene.fna; done < individual_genes_nuc.txt
+    while read -r line; do gene=\$( echo "\$line" );  better_fasta_grep "\$gene" individual_genes_nuc/result.fas > individual_genes_nuc/\$gene.fna; done < individual_genes_nuc.txt
     cat individual_genes_prot/result.faa | grep '^>' | sed 's/^.*@//' > individual_genes_prot.txt
-    while read -r line; do gene=\$( echo "\$line" );  bfg "\$gene" individual_genes_prot/result.faa > individual_genes_prot/\$gene.faa; done < individual_genes_prot.txt
+    while read -r line; do gene=\$( echo "\$line" );  better_fasta_grep "\$gene" individual_genes_prot/result.faa > individual_genes_prot/\$gene.faa; done < individual_genes_prot.txt
     if [[ -f individual_genes_nuc/nad4.fna ]]
     then
-    bfg -v -F nad4l individual_genes_nuc/nad4.fna > nad4.fna
+    better_fasta_grep -v -F nad4l individual_genes_nuc/nad4.fna > nad4.fna
     mv nad4.fna individual_genes_nuc/nad4.fna
     fi
     if [[ -f individual_genes_prot/nad4.faa ]]
     then
-    bfg -v -F nad4l individual_genes_prot/nad4.faa > nad4.faa
+    better_fasta_grep -v -F nad4l individual_genes_prot/nad4.faa > nad4.faa
     mv nad4.faa individual_genes_prot/nad4.faa
     fi
     if grep -q '\\-' "mitos_output/result.geneorder"
