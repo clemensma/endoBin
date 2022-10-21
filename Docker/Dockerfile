@@ -1,10 +1,10 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 
 LABEL author="Clemens Mauksch"
 
 RUN apt update --fix-missing && apt install sudo
 RUN sudo apt update --fix-missing
-
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN sudo apt install -y apt-utils python3 cutadapt fastqc wget git ncbi-blast+ trim-galore make gcc zlib1g-dev --fix-missing
 RUN sudo apt install -y pigz
 
