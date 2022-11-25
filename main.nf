@@ -270,6 +270,9 @@ process DENOVOASSEMBLY {
         De novo assembly of reads using SPAdes
     */
 
+    // Copies output file in output folder
+    publishDir "${params.output}/$params.job_name/host_assembly", mode: 'copy'
+
     // Process label
     label 'big_mem'
 
