@@ -764,7 +764,10 @@ process STRANDCONTROL {
     cat blast_output.txt | grep 'Strand' > blast_strands.txt
     if [[ \$( head -n 1 blast_strands.txt ) == *'Strand=Plus/Minus'* ]]
     then
-      seqtk seq -r single_contig_mitogenome.fa > mitogenome.fa
+      grep '^>' -v single_contig_mitogenome.fa | tr -d '\n' | rev | tr "ATGC" "TACG" > mitogenome_seq.fa
+      head -n 1 single_contig_mitogenome.fa > mitogenome_header.fa
+      cat mitogenome_header.fa mitogenome_seq.fa > mitogenome.fa
+      rm mitogenome_header.fa mitogenome_seq.fa
     else
       cat single_contig_mitogenome.fa > mitogenome.fa
     fi
