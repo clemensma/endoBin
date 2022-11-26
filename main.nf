@@ -616,7 +616,7 @@ process REASSEMBLEMITOGENOME {
     }
     
     create_stats () {
-    for file in *.fa
+    for file in *.fa*
     do
       contig_value=\$( grep '^>' \$file | wc -l )
       nucleotide_value=\$( grep -v '^>' \$file | wc -m )
@@ -704,16 +704,12 @@ process REASSEMBLEMITOGENOME {
           if [[ -f "Circularized_assembly_1_Mitogenome.fasta" ]]
           then
             input="\$i"; step='pre'; separate_contigs
-            input='Circularized_assembly_1_Mitogenome.fasta'; step='post'; separate_contigs
-            select_largest_contig
             create_stats
             mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Circularized_assembly_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
           then
             input="\$i"; step='pre'; separate_contigs
-            input='Uncircularized_assemblies_1_Mitogenome.fasta'; step='post'; separate_contigs
-            select_largest_contig
             create_stats
             mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Uncircularized_assemblies_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
