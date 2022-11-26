@@ -855,7 +855,6 @@ process MITOSFORMATTING {
     input:
     // Fasta file of assembled genome
     path mitos_out_dir
-    tuple val(name), path(rawreads)
 
     output:
     // Mitochondrial genome
@@ -868,7 +867,7 @@ process MITOSFORMATTING {
     then
       id=\$( echo "$params.species_id" )
     else
-      id=\$( echo "${rawreads[0].simpleName}" )
+      id='OTU'
     fi
     sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.fas | sed 's/(.*//' > individual_genes_nuc/result.fas
     sed "s/^.*\\(; \\)/>\${id}@/g" mitos_output/result.faa | sed 's/(.*//' > individual_genes_prot/result.faa
@@ -1068,9 +1067,11 @@ process CHECKENDOSYMBIONT {
 }
 
 workflow {
+    if (params.mode == "endo" || params.mode == "both" ){
     RAWQC(ch_rawReads)
     TRIMMING(ch_rawReads)
     TRIMMEDQC(TRIMMING.out)
+    }
     if (!params.contigs){
       DENOVOASSEMBLY(TRIMMING.out, params.kmers) 
       contigs = DENOVOASSEMBLY.out
@@ -1091,7 +1092,7 @@ workflow {
       REASSEMBLEMITOGENOME(contigs, EXTRACTMITOGENOME.out.mitogenome_candidates, ch_rawReads)
       STRANDCONTROL(REASSEMBLEMITOGENOME.out.mitogenome)
       ANNOTATEMITOGENOME(STRANDCONTROL.out.strand_tested_mitogenome)
-      MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out, TRIMMING.out)
+      MITOSFORMATTING(ANNOTATEMITOGENOME.out.mitos_out)
     }
 }
 
