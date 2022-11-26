@@ -378,10 +378,10 @@ process EXTRACTMITOGENOME {
 
     if [[ "$params.mito_min_size" = 'false' ]] || [[ "$params.mito_min_size" -gt "$params.mito_size" ]]
     then
-      calc_threshold_085=\$(( "$params.mito_size*17/20" ))
-      threshold_085=\$( echo \$calc_threshold_085 | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      calc_threshold_080=\$(( "$params.mito_size*8/10" ))
+      threshold_080=\$( echo \$calc_threshold_080 | awk '{printf("%d\\n",\$1 + 0.5)}' )
     else
-      threshold_085="$params.mito_min_size"
+      threshold_080="$params.mito_min_size"
     fi
 
     threshold_100=\$( echo "$params.mito_size" | awk '{printf("%d\\n",\$1 + 0.5)}' )
@@ -423,7 +423,7 @@ process EXTRACTMITOGENOME {
 
     for file in blastn_*
     do
-      if [[ \$(grep -c  '^>' \$file) -eq '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) -gt "\$threshold_085" ]]
+      if [[ \$(grep -c  '^>' \$file) -eq '1' ]] && [[ \$(grep -v  '^>' \$file | wc -m) -gt "\$threshold_080" ]]
       then
         cat \$file > mito_candidate_mitogenome.fa
         echo "Found the mitogenome on a single contig."
@@ -599,19 +599,27 @@ process REASSEMBLEMITOGENOME {
     done
     if [[ ! -f "largest_single_contig.fa" ]]
     then
+      touch mito_size_range.txt
       for contig in *pre_NOVOPlasty_contig_*.fa
       do
-        grep -v "^>" \$contig | wc -m
-      done > contig_sizes.txt
-      largest_contig=\$( cat contig_sizes.txt | sort -gr | uniq | head -n 1 )
-      rm contig_sizes.txt
-      for contig in *pre_NOVOPlasty_contig_*.fa
-      do
-        if [[ \$(grep -v "^>" \$contig | wc -m) = "\$largest_contig" ]]
+        nuc_size=\$(grep -v "^>" \$contig | tr -d '\n' | wc -m)
+        if [[ "\$nuc_size" -gt "\$threshold_080" ]] && [[ "\$nuc_size" -lt "\$calc_threshold_200" ]]
         then
-          cat \$contig > largest_single_contig.fa
+          echo \$nuc_size >> mito_size_range.txt
         fi
       done
+      if [[ \$(cat mito_size_range.txt | wc -l) -gt '0' ]]
+      then
+        closest_match=\$( awk -v c=1 -v t=\$threshold_100 'NR==1{d=\$c-t;d=d<0?-d:d;v=\$c;next}{m=\$c-t;m=m<0?-m:m}m<d{d=m;v=\$c}END{print v}' mito_size_range.txt )
+        for contig in *pre_NOVOPlasty_contig_*.fa
+        do
+          if [[ \$(grep -v "^>" \$contig | tr -d '\n' | wc -m) = "\$closest_match" ]]
+          then
+            cat \$contig > largest_single_contig.fa
+          fi
+        done
+      fi
+      rm mito_size_range.txt
     fi
     }
     
@@ -635,15 +643,18 @@ process REASSEMBLEMITOGENOME {
     then
       if [[ "$params.mito_min_size" = 'false' ]] || [[ "$params.mito_min_size" -gt "$params.mito_size" ]]
       then
-        calc_threshold_085=\$(( "$params.mito_size*17/20" ))
-        threshold_085=\$( echo \$calc_threshold_085 | awk '{printf("%d\\n",\$1 + 0.5)}' )
+        threshold_080=\$(( "$params.mito_size*8/10" ))
+        threshold_080=\$( echo \$calc_threshold_080 | awk '{printf("%d\\n",\$1 + 0.5)}' )
         calc_threshold_070=\$(( "$params.mito_size*7/10" ))
         threshold_070=\$( echo \$calc_threshold_070 | awk '{printf("%d\\n",\$1 + 0.5)}' )
       else
-        threshold_085="$params.mito_min_size"
+        threshold_080="$params.mito_min_size"
         threshold_070="$params.mito_min_size"
       fi
 
+      threshold_100=\$( echo "$params.mito_size" | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      calc_threshold_200=\$(( "$params.mito_size*2" ))
+      threshold_200=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
       calc_threshold_300=\$(( "$params.mito_size*3" ))
       threshold_300=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
 
