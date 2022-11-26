@@ -643,7 +643,7 @@ process REASSEMBLEMITOGENOME {
     then
       if [[ "$params.mito_min_size" = 'false' ]] || [[ "$params.mito_min_size" -gt "$params.mito_size" ]]
       then
-        threshold_080=\$(( "$params.mito_size*8/10" ))
+        calc_threshold_080=\$(( "$params.mito_size*8/10" ))
         threshold_080=\$( echo \$calc_threshold_080 | awk '{printf("%d\\n",\$1 + 0.5)}' )
         calc_threshold_070=\$(( "$params.mito_size*7/10" ))
         threshold_070=\$( echo \$calc_threshold_070 | awk '{printf("%d\\n",\$1 + 0.5)}' )
@@ -654,9 +654,9 @@ process REASSEMBLEMITOGENOME {
 
       threshold_100=\$( echo "$params.mito_size" | awk '{printf("%d\\n",\$1 + 0.5)}' )
       calc_threshold_200=\$(( "$params.mito_size*2" ))
-      threshold_200=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
-      calc_threshold_300=\$(( "$params.mito_size*3" ))
-      threshold_300=\$( echo \$calc_threshold_300 | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      threshold_200=\$( echo \$calc_threshold_200 | awk '{printf("%d\\n",\$1 + 0.5)}' )
+      calc_threshold_500=\$(( "$params.mito_size*5" ))
+      threshold_500=\$( echo \$calc_threshold_500 | awk '{printf("%d\\n",\$1 + 0.5)}' )
 
       echo "Project:
       -----------------------
@@ -698,7 +698,7 @@ process REASSEMBLEMITOGENOME {
           cat \$i > largest_single_contig.fa
           mv \$i largest_single_contig.fa NOVOPlasty_run_\$counter
         else
-          if [[ \$(grep -v '^>' \$i | wc -m) -eq '0' ]] || [[ \$(grep -v '^>' \$i | wc -m) -gt "\$threshold_300" ]]
+          if [[ \$(grep -v '^>' \$i | wc -m) -eq '0' ]] || [[ \$(grep -v '^>' \$i | wc -m) -gt "\$threshold_500" ]]
           then
             rm \$i
             continue
@@ -716,22 +716,36 @@ process REASSEMBLEMITOGENOME {
           then
             input="\$i"; step='pre'; separate_contigs
             create_stats
-            mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Circularized_assembly_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
+            if [[ \$(grep -v '^>' Circularized_assembly_1_Mitogenome.fasta | wc -m) -gt '0' ]]
+            then
+              cat Circularized_assembly_1_Mitogenome.fasta > largest_single_contig.fa
+              mv largest_single_contig.fa NOVOPlasty_run_\$counter
+            fi
+            mv \$i *_NOVOPlasty_contig_*.fa Circularized_assembly_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           elif [[ -f "Uncircularized_assemblies_1_Mitogenome.fasta" ]]
           then
             input="\$i"; step='pre'; separate_contigs
             create_stats
-            mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Uncircularized_assemblies_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
+            if [[ \$(grep -v '^>' Uncircularized_assemblies_1_Mitogenome.fasta | wc -m) -gt '0' ]]
+            then
+              cat Uncircularized_assemblies_1_Mitogenome.fasta > largest_single_contig.fa
+              mv largest_single_contig.fa NOVOPlasty_run_\$counter
+            fi
+            mv \$i *_NOVOPlasty_contig_*.fa Uncircularized_assemblies_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
 
           elif [[ -f "Contigs_1_Mitogenome.fasta" ]]
           then
-              echo "Mitogenome was not circularized."
-              input="\$i"; step='pre'; separate_contigs
-              input='Contigs_1_Mitogenome.fasta'; step='post'; separate_contigs
-              select_largest_contig
-              create_stats
-              mv \$i *_NOVOPlasty_contig_*.fa largest_single_contig.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
+            echo "Mitogenome was not circularized."
+            input="\$i"; step='pre'; separate_contigs
+            input='Contigs_1_Mitogenome.fasta'; step='post'; separate_contigs
+            select_largest_contig
+            create_stats
+            mv \$i *_NOVOPlasty_contig_*.fa Contigs_1_Mitogenome.fasta stats.txt NOVOPlasty_run_\$counter
+            if [[ -f largest_single_contig.fa ]]
+            then
+              mv largest_single_contig.fa NOVOPlasty_run_\$counter
+            fi
 
           fi
           if [[ -f NOVOPlasty_run_\${counter}/largest_single_contig.fa ]] && [[ \$(grep -v '^>' NOVOPlasty_run_\${counter}/largest_single_contig.fa | wc -m) -gt "\$threshold_070" ]]
